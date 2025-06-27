@@ -8,3 +8,5 @@
 /typechain-types
 /yarn-error.log
 /yarn.lock
+test-ledger
+target

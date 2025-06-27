@@ -1,0 +1,25 @@
+[workspace]
+members = [
+  "core"
+]
+
+[workspace.package]
+edition = "2024"
+
+[workspace.dependencies]
+anchor-lang = "0.31.0"
+anchor-syn = "0.31.0"
+anchor-gen = "0.4.1"
+solana-sdk = "~2.1"
+solana-client = "~2.1"
+solana-account-decoder = "~2.1"
+solana-program-test = "~2.1"
+tokio = { version = "1", features = ["full"] }
+jupiter-amm-interface = "=0.5.1"
+
+# SPL
+spl-token = { version = "7.0.0", features = ["no-entrypoint"] }
+spl-token-2022 = { version = "7.0.0", features = ["no-entrypoint"] }
+spl-associated-token-account = { version = "6.0.0", features = [
+    "no-entrypoint",
+] }
