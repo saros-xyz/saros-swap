@@ -18,7 +18,7 @@ use super::account_meta_from_token_swap::TokenSwap;
 
 mod spl_token_swap_programs {
     use anchor_lang::{prelude::Pubkey, pubkey};
-    pub const SAROS: Pubkey = pubkey!("StaGHXrozaggJ7a9Y8U5ak5NxxZgYVdrBG9kQwbHAes");
+    pub const SAROS: Pubkey = pubkey!("SSwapUtytfBdBn1b9NUGG6foMVPtcWgpRU32HToDUZr");
 }
 
 lazy_static! {
