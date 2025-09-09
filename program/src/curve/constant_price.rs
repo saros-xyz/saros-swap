@@ -98,6 +98,16 @@ impl CurveCalculator for ConstantPriceCurve {
         })
     }
 
+    fn swap_exact_out_without_fees(
+        &self,
+        destination_amount: u128,
+        swap_source_amount: u128,
+        swap_destination_amount: u128,
+        trade_direction: TradeDirection,
+    ) -> Option<SwapWithoutFeesResult> {
+        None
+    }
+
     /// Get the amount of trading tokens for the given amount of pool tokens,
     /// provided the total trading tokens and supply of pool tokens.
     /// For the constant price curve, the total value of the pool is weighted

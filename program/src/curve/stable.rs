@@ -158,6 +158,16 @@ impl CurveCalculator for StableCurve {
         })
     }
 
+    fn swap_exact_out_without_fees(
+        &self,
+        _destination_amount: u128,
+        _swap_source_amount: u128,
+        _swap_destination_amount: u128,
+        _trade_direction: TradeDirection,
+    ) -> Option<SwapWithoutFeesResult> {
+        None
+    }
+
     /// Re-implementation of `remove_liquidty`:
     ///
     /// <https://github.com/curvefi/curve-contract/blob/80bbe179083c9a7062e4c482b0be3bfb7501f2bd/contracts/pool-templates/base/SwapTemplateBase.vy#L513>

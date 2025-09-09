@@ -104,6 +104,44 @@ impl SwapCurve {
         })
     }
 
+    /// Subtract fees and calculate how much source token is needed to provide
+    /// the given amount of destination token.
+    pub fn swap_exact_out(
+        &self,
+        destination_amount: u128,
+        swap_source_amount: u128,
+        swap_destination_amount: u128,
+        trade_direction: TradeDirection,
+        fees: &Fees,
+    ) -> Option<SwapResult> {
+        let SwapWithoutFeesResult {
+            source_amount_swapped,
+            destination_amount_swapped,
+        } = self.calculator.swap_exact_out_without_fees(
+            destination_amount,
+            swap_source_amount,
+            swap_destination_amount,
+            trade_direction,
+        )?;
+
+        // credit the fee to calculate the amount swapped
+        let trade_fee = fees.trading_fee(source_amount_swapped)?;
+        let owner_fee = fees.owner_trading_fee(source_amount_swapped)?;
+
+        let total_fees = trade_fee.checked_add(owner_fee)?;
+        let source_amount_swapped = source_amount_swapped.checked_add(total_fees)?;
+
+        Some(SwapResult {
+            new_swap_source_amount: swap_source_amount.checked_add(source_amount_swapped)?,
+            new_swap_destination_amount: swap_destination_amount
+                .checked_sub(destination_amount_swapped)?,
+            source_amount_swapped,
+            destination_amount_swapped,
+            trade_fee,
+            owner_fee,
+        })
+    }
+
     /// Get the amount of pool tokens for the deposited amount of token A or B
     pub fn deposit_single_token_type(
         &self,
