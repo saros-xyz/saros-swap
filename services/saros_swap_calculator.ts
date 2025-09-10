@@ -1,4 +1,4 @@
-import { TokenProgramService } from '@coin98/solana-support-library';
+import { TokenProgramService } from './libraries/token_program.service';
 import { Connection } from '@solana/web3.js';
 import BN from 'bn.js';
 import { PoolInfo } from './saros_swap.instruction';

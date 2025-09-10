@@ -105,7 +105,32 @@ impl CurveCalculator for ConstantPriceCurve {
         swap_destination_amount: u128,
         trade_direction: TradeDirection,
     ) -> Option<SwapWithoutFeesResult> {
-        None
+        let token_b_price = self.token_b_price as u128;
+        let (source_amount_swapped, destination_amount_swapped) = match trade_direction {
+            TradeDirection::AtoB => {
+                let source_amount_swapped = destination_amount.checked_mul(token_b_price)?;
+                if source_amount_swapped > swap_source_amount || destination_amount > swap_destination_amount
+                {
+                    return None;
+                }
+                (source_amount_swapped, destination_amount)
+            }
+            TradeDirection::BtoA => {
+                let source_amount_swapped = destination_amount;
+                let destination_amount_swapped = destination_amount.checked_mul(token_b_price)?;
+                if source_amount_swapped > swap_source_amount || destination_amount_swapped > swap_destination_amount
+                {
+                    return None;
+                }
+                (source_amount_swapped, destination_amount_swapped)
+            }
+        };
+        let source_amount_swapped = map_zero_to_none(source_amount_swapped)?;
+        let destination_amount_swapped = map_zero_to_none(destination_amount_swapped)?;
+        Some(SwapWithoutFeesResult {
+            source_amount_swapped,
+            destination_amount_swapped,
+        })
     }
 
     /// Get the amount of trading tokens for the given amount of pool tokens,

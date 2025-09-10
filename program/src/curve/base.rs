@@ -115,7 +115,7 @@ impl SwapCurve {
         fees: &Fees,
     ) -> Option<SwapResult> {
         let SwapWithoutFeesResult {
-            source_amount_swapped,
+            source_amount_swapped, // net amount
             destination_amount_swapped,
         } = self.calculator.swap_exact_out_without_fees(
             destination_amount,
@@ -124,18 +124,20 @@ impl SwapCurve {
             trade_direction,
         )?;
 
-        // credit the fee to calculate the amount swapped
+        // calculate fee from net amount
         let trade_fee = fees.trading_fee(source_amount_swapped)?;
         let owner_fee = fees.owner_trading_fee(source_amount_swapped)?;
 
-        let total_fees = trade_fee.checked_add(owner_fee)?;
-        let source_amount_swapped = source_amount_swapped.checked_add(total_fees)?;
+        let gross_source_amount_swapped = source_amount_swapped.checked_mul(source_amount_swapped)?
+            .checked_div(
+                source_amount_swapped.checked_sub(trade_fee.checked_add(owner_fee)?)?,
+            )?;
 
         Some(SwapResult {
             new_swap_source_amount: swap_source_amount.checked_add(source_amount_swapped)?,
             new_swap_destination_amount: swap_destination_amount
                 .checked_sub(destination_amount_swapped)?,
-            source_amount_swapped,
+            source_amount_swapped: gross_source_amount_swapped,
             destination_amount_swapped,
             trade_fee,
             owner_fee,
