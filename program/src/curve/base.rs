@@ -104,8 +104,7 @@ impl SwapCurve {
         })
     }
 
-    /// Subtract fees and calculate how much source token is needed to provide
-    /// the given amount of destination token.
+    /// Calculate how much source token is needed to receive an exact amount of destination
     pub fn swap_exact_out(
         &self,
         destination_amount: u128,
