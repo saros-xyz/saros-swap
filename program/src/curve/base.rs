@@ -133,7 +133,7 @@ impl SwapCurve {
             )?;
 
         Some(SwapResult {
-            new_swap_source_amount: swap_source_amount.checked_add(source_amount_swapped)?,
+            new_swap_source_amount: swap_source_amount.checked_add(gross_source_amount_swapped)?,
             new_swap_destination_amount: swap_destination_amount
                 .checked_sub(destination_amount_swapped)?,
             source_amount_swapped: gross_source_amount_swapped,
