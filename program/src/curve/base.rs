@@ -436,4 +436,40 @@ mod tests {
         assert_eq!(result.destination_amount_swapped, 4545);
         assert_eq!(result.new_swap_destination_amount, 45455);
     }
+
+    #[test]
+    fn constant_product_exact_out() {
+        let swap_source_amount: u128 = 1_000;
+        let swap_destination_amount: u128 = 50_000;
+        let source_amount: u128 = 100;
+        let curve = ConstantProductCurve::default();
+        let fees = Fees::default();
+        let swap_curve = SwapCurve {
+            curve_type: CurveType::ConstantProduct,
+            calculator: Box::new(curve),
+        };
+        let result = swap_curve
+            .swap(
+                source_amount,
+                swap_source_amount,
+                swap_destination_amount,
+                TradeDirection::AtoB,
+                &fees,
+            )
+            .unwrap();
+
+        let result = swap_curve
+            .swap_exact_out(
+                result.destination_amount_swapped,
+                swap_source_amount,
+                swap_destination_amount,
+                TradeDirection::AtoB,
+                &fees,
+            )
+            .unwrap();
+        assert_eq!(result.source_amount_swapped, 100);
+        // assert_eq!(result.new_swap_source_amount, 1100);
+        // assert_eq!(result.destination_amount_swapped, 4545);
+        // assert_eq!(result.new_swap_destination_amount, 45455);
+    }
 }
