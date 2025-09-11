@@ -4,6 +4,7 @@ use solana_program::{
     program_error::ProgramError,
     program_pack::{Pack, Sealed},
 };
+use spl_math::checked_ceil_div::CheckedCeilDiv;
 
 use crate::curve::{
     calculator::{CurveCalculator, SwapWithoutFeesResult, TradeDirection},
@@ -123,12 +124,29 @@ impl SwapCurve {
             trade_direction,
         )?;
 
+        /*
+        Formula derivation:
+        in swap function user input gross amount in(g)
+        owner fee = f_o * g
+        trade fee = f_t * g
+        net amount in(n) = g - f_o*g - f_t*g
+
+        in swap exact out, output of swap_exact_out_without_fees is net amount in(n)
+        so we need to calculate gross amount in(g) from net amount in(n)
+        n = g - f_o*g - f_t*g
+        n = g(1 - f_o - f_t)
+        g = n / (1 - f_o - f_t)
+
+        for handle uint division rounding down, we use:
+        g = n^2 / (n - n*f_o - n*f_t)
+        */
+
         // calculate fee from net amount
         let trade_fee = fees.trading_fee(source_amount_swapped)?;
         let owner_fee = fees.owner_trading_fee(source_amount_swapped)?;
 
-        let gross_source_amount_swapped = source_amount_swapped.checked_mul(source_amount_swapped)?
-            .checked_div(
+        let (gross_source_amount_swapped, _) = source_amount_swapped.checked_mul(source_amount_swapped)?
+            .checked_ceil_div(
                 source_amount_swapped.checked_sub(trade_fee.checked_add(owner_fee)?)?,
             )?;
 
