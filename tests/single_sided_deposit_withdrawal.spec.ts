@@ -1,12 +1,7 @@
-import {
-  SystemProgramService,
-  TokenProgramService
-} from '@coin98/solana-support-library';
-import {
-  SolanaConfigService,
-  TestAccountService,
-  TokenName
-} from '@coin98/solana-support-library/config';
+import { SystemProgramService } from '../services/libraries/system_program.service';
+import { TokenProgramService } from '../services/libraries/token_program.service';
+import { SolanaConfigService } from '../services/libraries/solana_config.service';
+import { TestAccountService, TokenName } from '../services/libraries/test_account.service';
 import {
   Connection,
   Keypair,
@@ -78,6 +73,7 @@ describe('single_sided_deposit_withdrawal_tests', function() {
     await TokenProgramService.mint(
       connection,
       ownerAccount,
+      ownerAccount,
       usdcTokenAccount.publicKey,
       testAccount1UsdcAddress,
       new BN('10000000000'),
@@ -90,6 +86,7 @@ describe('single_sided_deposit_withdrawal_tests', function() {
     );
     await TokenProgramService.mint(
       connection,
+      ownerAccount,
       ownerAccount,
       usdtTokenAccount.publicKey,
       testAccount1UsdtAddress,
@@ -123,6 +120,7 @@ describe('single_sided_deposit_withdrawal_tests', function() {
     await TokenProgramService.mint(
       connection,
       ownerAccount,
+      ownerAccount,
       usdcTokenAccount.publicKey,
       testAccount2UsdcAddress,
       new BN('10000000'),
@@ -135,6 +133,7 @@ describe('single_sided_deposit_withdrawal_tests', function() {
     );
     await TokenProgramService.mint(
       connection,
+      ownerAccount,
       ownerAccount,
       usdtTokenAccount.publicKey,
       testAccount2UsdtAddress,

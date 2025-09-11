@@ -56,6 +56,16 @@ impl CurveCalculator for OffsetCurve {
         swap(source_amount, swap_source_amount, swap_destination_amount)
     }
 
+    fn swap_exact_out_without_fees(
+        &self,
+        _destination_amount: u128,
+        _swap_source_amount: u128,
+        _swap_destination_amount: u128,
+        _trade_direction: TradeDirection,
+    ) -> Option<SwapWithoutFeesResult> {
+        None
+    }
+
     /// The conversion for the offset curve needs to take into account the
     /// offset
     fn pool_tokens_to_trading_tokens(

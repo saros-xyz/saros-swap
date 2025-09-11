@@ -95,6 +95,15 @@ pub trait CurveCalculator: Debug + DynPack {
         trade_direction: TradeDirection,
     ) -> Option<SwapWithoutFeesResult>;
 
+    /// Calculate how much source token is required to provide the given amount
+    fn swap_exact_out_without_fees(
+        &self,
+        destination_amount: u128,
+        swap_source_amount: u128,
+        swap_destination_amount: u128,
+        trade_direction: TradeDirection,
+    ) -> Option<SwapWithoutFeesResult>;
+
     /// Get the supply for a new pool
     /// The default implementation is a Balancer-style fixed initial supply
     fn new_pool_supply(&self) -> u128 {

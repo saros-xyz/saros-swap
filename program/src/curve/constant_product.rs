@@ -12,7 +12,7 @@ use {
         program_error::ProgramError,
         program_pack::{IsInitialized, Pack, Sealed},
     },
-    spl_math::{checked_ceil_div::CheckedCeilDiv, precise_number::PreciseNumber},
+    spl_math::{checked_ceil_div::CheckedCeilDiv, precise_number::PreciseNumber}, std::fmt::Error,
 };
 
 /// ConstantProductCurve struct implementing CurveCalculator
@@ -38,6 +38,32 @@ pub fn swap(
     let source_amount_swapped = new_swap_source_amount.checked_sub(swap_source_amount)?;
     let destination_amount_swapped =
         map_zero_to_none(swap_destination_amount.checked_sub(new_swap_destination_amount)?)?;
+
+    Some(SwapWithoutFeesResult {
+        source_amount_swapped,
+        destination_amount_swapped,
+    })
+}
+
+/// The constant product swap exact out calculation, factored out of its class for reuse.
+///
+/// This is guaranteed to work for all values such that:
+///  - 1 <= swap_source_amount * swap_destination_amount <= u128::MAX
+///  - 1 <= destination_amount <= u64::MAX
+pub fn swap_exact_out(
+    destination_amount: u128,
+    swap_source_amount: u128,
+    swap_destination_amount: u128,
+) -> Option<SwapWithoutFeesResult> {
+    let invariant = swap_source_amount.checked_mul(swap_destination_amount)?;
+
+    let new_swap_destination_amount = swap_destination_amount.checked_sub(destination_amount)?;
+    let (new_swap_source_amount, new_swap_destination_amount) =
+        invariant.checked_ceil_div(new_swap_destination_amount)?;
+
+    let source_amount_swapped = map_zero_to_none(new_swap_source_amount.checked_sub(swap_source_amount)?)?;
+    let destination_amount_swapped =
+        swap_destination_amount.checked_sub(new_swap_destination_amount)?;
 
     Some(SwapWithoutFeesResult {
         source_amount_swapped,
@@ -180,6 +206,16 @@ impl CurveCalculator for ConstantProductCurve {
         _trade_direction: TradeDirection,
     ) -> Option<SwapWithoutFeesResult> {
         swap(source_amount, swap_source_amount, swap_destination_amount)
+    }
+
+    fn swap_exact_out_without_fees(
+            &self,
+            destination_amount: u128,
+            swap_source_amount: u128,
+            swap_destination_amount: u128,
+            _trade_direction: TradeDirection,
+    ) -> Option<SwapWithoutFeesResult> {
+        swap_exact_out(destination_amount, swap_source_amount, swap_destination_amount)
     }
 
     /// The constant product implementation is a simple ratio calculation for how many
@@ -544,6 +580,130 @@ mod tests {
                 swap_token_a_amount,
                 swap_token_b_amount,
             );
+        }
+    }
+
+    #[test]
+    fn constant_product_swap_exact_out_rounding() {
+        let curve = ConstantProductCurve::default();
+
+        // Test case for swap_exact_out: very small amount
+        assert!(curve
+            .swap_exact_out_without_fees(1, 1_000_000, 10, TradeDirection::AtoB)
+            .is_some());
+
+        // Test for reasonable values
+        let result = curve
+            .swap_exact_out_without_fees(100, 10_000, 5_000, TradeDirection::AtoB)
+            .unwrap();
+        assert_eq!(result.destination_amount_swapped, 100);
+        assert!(result.source_amount_swapped > 0);
+
+        // Test where the output is a significant portion of the pool
+        let result = curve
+            .swap_exact_out_without_fees(1_000, 10_000, 5_000, TradeDirection::AtoB)
+            .unwrap();
+        assert_eq!(result.destination_amount_swapped, 1_000);
+        assert!(result.source_amount_swapped > 0);
+
+        // Edge case: output is almost the entire pool
+        let result = curve
+            .swap_exact_out_without_fees(4_999, 10_000, 5_000, TradeDirection::AtoB)
+            .unwrap();
+        assert_eq!(result.destination_amount_swapped, 4_999);
+        assert!(result.source_amount_swapped > 0);
+
+        // Should fail: trying to take entire pool
+        assert!(curve
+            .swap_exact_out_without_fees(5_000, 10_000, 5_000, TradeDirection::AtoB)
+            .is_none());
+
+        // Should fail: trying to take more than the pool
+        assert!(curve
+            .swap_exact_out_without_fees(5_001, 10_000, 5_000, TradeDirection::AtoB)
+            .is_none());
+    }
+
+    fn test_swap_exact_out_invariant(
+        curve: &ConstantProductCurve,
+        destination_amount: u128,
+        swap_source_amount: u128,
+        swap_destination_amount: u128,
+    ) {
+        let invariant_before = swap_source_amount * swap_destination_amount;
+        
+        let result = curve
+            .swap_exact_out_without_fees(
+                destination_amount,
+                swap_source_amount,
+                swap_destination_amount,
+                TradeDirection::AtoB,
+            )
+            .unwrap();
+            
+        let new_source_amount = swap_source_amount + result.source_amount_swapped;
+        let new_destination_amount = swap_destination_amount - result.destination_amount_swapped;
+        let invariant_after = new_source_amount * new_destination_amount;
+        
+        // Verify destination amount is exactly what was requested
+        assert_eq!(result.destination_amount_swapped, destination_amount);
+        
+        // Verify the invariant doesn't decrease
+        assert!(invariant_after >= invariant_before);
+    }
+
+    #[test]
+    fn swap_exact_out_invariant_preservation() {
+        let curve = ConstantProductCurve::default();
+
+        // Various test cases with different pool sizes and amounts
+        test_swap_exact_out_invariant(&curve, 100, 10_000, 10_000);
+        test_swap_exact_out_invariant(&curve, 1_000, 100_000, 50_000);
+        test_swap_exact_out_invariant(&curve, 5, 1_000, 1_000);
+        test_swap_exact_out_invariant(&curve, 9_000, 100_000, 10_000);
+        
+        // Edge cases
+        test_swap_exact_out_invariant(&curve, 1, 1_000_000, 1_000_000);
+        test_swap_exact_out_invariant(&curve, 999, 1_000, 1_000);
+    }
+
+    proptest! {
+        #[test]
+        fn swap_exact_out_doesnt_decrease_value(
+            destination_amount in 1..1_000_000u64,
+            swap_source_amount in 1_000_000..100_000_000u64,
+            swap_destination_amount in 1_000_000..100_000_000u64,
+        ) {
+            let curve = ConstantProductCurve::default();
+            
+            // Ensure destination amount is less than available
+            let destination_amount = std::cmp::min(
+                destination_amount as u128, 
+                swap_destination_amount as u128 - 1
+            );
+            
+            let invariant_before = (swap_source_amount as u128) * (swap_destination_amount as u128);
+            
+            let result = curve
+                .swap_exact_out_without_fees(
+                    destination_amount,
+                    swap_source_amount as u128,
+                    swap_destination_amount as u128,
+                    TradeDirection::AtoB,
+                );
+                
+            prop_assume!(result.is_some());
+            let result = result.unwrap();
+            
+            // Verify destination amount is exactly what was requested
+            assert_eq!(result.destination_amount_swapped, destination_amount);
+            
+            // Verify invariant doesn't decrease
+            let new_source = (swap_source_amount as u128) + result.source_amount_swapped;
+            let new_dest = (swap_destination_amount as u128) - result.destination_amount_swapped;
+            let invariant_after = new_source * new_dest;
+            
+            assert!(invariant_after >= invariant_before);
         }
     }
 }
