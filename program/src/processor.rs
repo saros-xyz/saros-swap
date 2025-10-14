@@ -725,7 +725,7 @@ impl Processor {
         Ok(())
     }
 
-    #[cfg(all(not(feature = "localhost")))]
+    #[cfg(feature = "mainnet")]
     /// Processes DepositSingleTokenTypeExactAmountIn
     pub fn process_deposit_single_token_type_exact_amount_in(
         _program_id: &Pubkey,
@@ -736,7 +736,7 @@ impl Processor {
         Ok(())
     }
 
-    #[cfg(feature = "localhost")]
+    #[cfg(not(feature = "mainnet"))]
     /// Processes DepositSingleTokenTypeExactAmountIn
     pub fn process_deposit_single_token_type_exact_amount_in(
         program_id: &Pubkey,
@@ -857,7 +857,7 @@ impl Processor {
         Ok(())
     }
 
-    #[cfg(all(not(feature = "localhost")))]
+    #[cfg(feature = "mainnet")]
     /// Processes a [WithdrawSingleTokenTypeExactAmountOut](enum.Instruction.html).
     pub fn process_withdraw_single_token_type_exact_amount_out(
         _program_id: &Pubkey,
@@ -868,7 +868,7 @@ impl Processor {
         Ok(())
     }
 
-    #[cfg(feature = "localhost")]
+    #[cfg(not(feature = "mainnet"))]
     /// Processes a [WithdrawSingleTokenTypeExactAmountOut](enum.Instruction.html).
     pub fn process_withdraw_single_token_type_exact_amount_out(
         program_id: &Pubkey,

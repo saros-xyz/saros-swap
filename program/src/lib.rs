@@ -18,8 +18,5 @@ pub use solana_program;
 #[cfg(feature = "mainnet")]
 solana_program::declare_id!("SSwapUtytfBdBn1b9NUGG6foMVPtcWgpRU32HToDUZr");
 
-#[cfg(feature = "devnet")]
-solana_program::declare_id!("SSStkgZHW17LRbGUFSDQqzZ4jMXpfmVxHDbWwMaFEXE");
-
-#[cfg(all(not(feature = "mainnet"), not(feature = "devnet")))]
+#[cfg(not(feature = "mainnet"))]
 solana_program::declare_id!("StaGHXrozaggJ7a9Y8U5ak5NxxZgYVdrBG9kQwbHAes");
