@@ -7,3 +7,5 @@
 /typechain-types
 /yarn-error.log
 /yarn.lock
+
+!target/idl/*
