@@ -98,6 +98,40 @@ impl CurveCalculator for ConstantPriceCurve {
         })
     }
 
+    fn swap_exact_out_without_fees(
+        &self,
+        destination_amount: u128,
+        _swap_source_amount: u128,
+        _swap_destination_amount: u128,
+        trade_direction: TradeDirection,
+    ) -> Option<SwapWithoutFeesResult> {
+        let token_b_price = self.token_b_price as u128;
+        let (source_amount_swapped, destination_amount_swapped) = match trade_direction {
+            TradeDirection::AtoB => {
+                let source_amount_swapped = destination_amount.checked_mul(token_b_price)?;
+                (source_amount_swapped, destination_amount)
+            }
+            TradeDirection::BtoA => {
+                let source_amount_swapped = destination_amount.checked_div(token_b_price)?;
+                let remainder = destination_amount.checked_rem(token_b_price)?;
+                // if there is a remainder from buying token B, round up
+                // token in to avoid not taking enough tokens
+                let source_amount_swapped = if remainder > 0 {
+                    source_amount_swapped.checked_add(1)?
+                } else {
+                    source_amount_swapped
+                };
+                (source_amount_swapped, destination_amount)
+            }
+        };
+        let source_amount_swapped = map_zero_to_none(source_amount_swapped)?;
+        let destination_amount_swapped = map_zero_to_none(destination_amount_swapped)?;
+        Some(SwapWithoutFeesResult {
+            source_amount_swapped,
+            destination_amount_swapped,
+        })
+    }
+
     /// Get the amount of trading tokens for the given amount of pool tokens,
     /// provided the total trading tokens and supply of pool tokens.
     /// For the constant price curve, the total value of the pool is weighted

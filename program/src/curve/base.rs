@@ -4,6 +4,7 @@ use solana_program::{
     program_error::ProgramError,
     program_pack::{Pack, Sealed},
 };
+use spl_math::checked_ceil_div::CheckedCeilDiv;
 
 use crate::curve::{
     calculator::{CurveCalculator, SwapWithoutFeesResult, TradeDirection},
@@ -98,6 +99,62 @@ impl SwapCurve {
             new_swap_destination_amount: swap_destination_amount
                 .checked_sub(destination_amount_swapped)?,
             source_amount_swapped,
+            destination_amount_swapped,
+            trade_fee,
+            owner_fee,
+        })
+    }
+
+    /// Calculate how much source token is needed to receive an exact amount of destination
+    pub fn swap_exact_out(
+        &self,
+        destination_amount: u128,
+        swap_source_amount: u128,
+        swap_destination_amount: u128,
+        trade_direction: TradeDirection,
+        fees: &Fees,
+    ) -> Option<SwapResult> {
+        let SwapWithoutFeesResult {
+            source_amount_swapped, // net amount
+            destination_amount_swapped,
+        } = self.calculator.swap_exact_out_without_fees(
+            destination_amount,
+            swap_source_amount,
+            swap_destination_amount,
+            trade_direction,
+        )?;
+
+        /*
+        Formula derivation:
+        in swap function user input gross amount in(g)
+        owner fee = f_o * g
+        trade fee = f_t * g
+        net amount in(n) = g - f_o*g - f_t*g
+
+        in swap exact out, output of swap_exact_out_without_fees is net amount in(n)
+        so we need to calculate gross amount in(g) from net amount in(n)
+        n = g - f_o*g - f_t*g
+        n = g(1 - f_o - f_t)
+        g = n / (1 - f_o - f_t)
+
+        for handle uint division rounding down, we use:
+        g = n^2 / (n - n*f_o - n*f_t)
+        */
+
+        // calculate fee from net amount
+        let trade_fee = fees.trading_fee(source_amount_swapped)?;
+        let owner_fee = fees.owner_trading_fee(source_amount_swapped)?;
+
+        let (gross_source_amount_swapped, _) = source_amount_swapped.checked_mul(source_amount_swapped)?
+            .checked_ceil_div(
+                source_amount_swapped.checked_sub(trade_fee.checked_add(owner_fee)?)?,
+            )?;
+
+        Some(SwapResult {
+            new_swap_source_amount: swap_source_amount.checked_add(gross_source_amount_swapped)?,
+            new_swap_destination_amount: swap_destination_amount
+                .checked_sub(destination_amount_swapped)?,
+            source_amount_swapped: gross_source_amount_swapped,
             destination_amount_swapped,
             trade_fee,
             owner_fee,
@@ -396,5 +453,41 @@ mod tests {
         assert_eq!(result.new_swap_source_amount, 1100);
         assert_eq!(result.destination_amount_swapped, 4545);
         assert_eq!(result.new_swap_destination_amount, 45455);
+    }
+
+    #[test]
+    fn constant_product_exact_out() {
+        let swap_source_amount: u128 = 1_000;
+        let swap_destination_amount: u128 = 50_000;
+        let source_amount: u128 = 100;
+        let curve = ConstantProductCurve::default();
+        let fees = Fees::default();
+        let swap_curve = SwapCurve {
+            curve_type: CurveType::ConstantProduct,
+            calculator: Box::new(curve),
+        };
+        let result = swap_curve
+            .swap(
+                source_amount,
+                swap_source_amount,
+                swap_destination_amount,
+                TradeDirection::AtoB,
+                &fees,
+            )
+            .unwrap();
+
+        let result = swap_curve
+            .swap_exact_out(
+                result.destination_amount_swapped,
+                swap_source_amount,
+                swap_destination_amount,
+                TradeDirection::AtoB,
+                &fees,
+            )
+            .unwrap();
+        assert_eq!(result.source_amount_swapped, 100);
+        // assert_eq!(result.new_swap_source_amount, 1100);
+        // assert_eq!(result.destination_amount_swapped, 4545);
+        // assert_eq!(result.new_swap_destination_amount, 45455);
     }
 }
