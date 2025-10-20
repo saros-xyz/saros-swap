@@ -9,8 +9,9 @@ use crate::{
     },
     error::SwapError,
     instruction::{
-        DepositAllTokenTypes, DepositSingleTokenTypeExactAmountIn, Initialize, Swap,
-        SwapInstruction, WithdrawAllTokenTypes, WithdrawSingleTokenTypeExactAmountOut,
+        DepositAllTokenTypes, DepositSingleTokenTypeExactAmountIn, Initialize, InitializeMetadata,
+        Swap, SwapInstruction, UpdateMetadata, WithdrawAllTokenTypes,
+        WithdrawSingleTokenTypeExactAmountOut,
     },
     state::{SwapState, SwapV1, SwapVersion},
 };
@@ -24,13 +25,24 @@ use solana_program::{
     program_error::{PrintProgramError, ProgramError},
     program_option::COption,
     program_pack::Pack,
+    pubkey,
     pubkey::Pubkey,
 };
 use std::convert::TryInto;
 
+/// Token Metadata Program ID
+const TOKEN_METADATA_PROGRAM_ID: Pubkey = pubkey!("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s");
+
 /// Program state handler.
 pub struct Processor {}
 impl Processor {
+    /// Helper function to pack a string with length prefix for metadata instructions
+    #[inline]
+    fn pack_string(data: &mut Vec<u8>, s: &str) {
+        data.extend_from_slice(&(s.len() as u32).to_le_bytes());
+        data.extend_from_slice(s.as_bytes());
+    }
+
     /// Unpacks a spl_token `Account`.
     pub fn unpack_token_account(
         account_info: &AccountInfo,
@@ -1008,6 +1020,223 @@ impl Processor {
         Ok(())
     }
 
+    /// Processes an [InitializeMetadata](enum.Instruction.html).
+    pub fn process_initialize_metadata(
+        program_id: &Pubkey,
+        accounts: &[AccountInfo],
+        name: String,
+        symbol: String,
+        uri: String,
+    ) -> ProgramResult {
+        let account_info_iter = &mut accounts.iter();
+        let swap_info = next_account_info(account_info_iter)?;
+        let pool_mint_info = next_account_info(account_info_iter)?;
+        let metadata_info = next_account_info(account_info_iter)?;
+        let mint_authority_info = next_account_info(account_info_iter)?;
+        let payer_info = next_account_info(account_info_iter)?;
+        let system_program_info = next_account_info(account_info_iter)?;
+        let rent_info = next_account_info(account_info_iter)?;
+        let metadata_program_info = next_account_info(account_info_iter)?;
+
+        // Verify the swap account is initialized
+        let token_swap = SwapVersion::unpack(&swap_info.data.borrow())?;
+
+        // Verify mint authority is the swap authority
+        let (swap_authority, _bump_seed) =
+            Pubkey::find_program_address(&[&swap_info.key.to_bytes()], program_id);
+        if *mint_authority_info.key != swap_authority {
+            return Err(SwapError::InvalidProgramAddress.into());
+        }
+
+        // Verify pool mint matches the swap's pool mint
+        if pool_mint_info.key != token_swap.pool_mint() {
+            return Err(SwapError::IncorrectPoolMint.into());
+        }
+
+        // Verify the metadata program is the expected Token Metadata program
+        if *metadata_program_info.key != TOKEN_METADATA_PROGRAM_ID {
+            return Err(ProgramError::IncorrectProgramId);
+        }
+
+        // Derive metadata PDA using Token Metadata program's standard derivation
+        // Seeds: ["metadata", token_metadata_program_id, mint_pubkey]
+
+        let metadata_seeds = &[
+            b"metadata",
+            metadata_program_info.key.as_ref(),
+            pool_mint_info.key.as_ref(),
+        ];
+        let (expected_metadata_key, _bump) = Pubkey::find_program_address(metadata_seeds, metadata_program_info.key);
+
+        if *metadata_info.key != expected_metadata_key {
+            msg!("Error: Metadata account is not the correct PDA");
+            return Err(ProgramError::InvalidSeeds);
+        }
+
+        // Build the create_metadata_accounts_v3 instruction for Token Metadata program
+        const CREATE_METADATA_ACCOUNTS_V3_DISCRIMINATOR: u8 = 33;
+
+        let mut instruction_data = vec![CREATE_METADATA_ACCOUNTS_V3_DISCRIMINATOR];
+
+        // Serialize DataV2 struct
+        Self::pack_string(&mut instruction_data, &name);
+        Self::pack_string(&mut instruction_data, &symbol);
+        Self::pack_string(&mut instruction_data, &uri);
+
+        instruction_data.extend_from_slice(&0u16.to_le_bytes()); // seller_fee_basis_points: 0
+        instruction_data.push(0); // creators: None
+        instruction_data.push(0); // collection: None
+        instruction_data.push(0); // uses: None
+        instruction_data.push(1); // is_mutable: true
+
+        // Get swap authority for signing
+        let authority_signer_seeds = [
+            &swap_info.key.to_bytes()[..32],
+            &[token_swap.bump_seed()],
+        ];
+
+        // Create CPI to Token Metadata program
+        let create_metadata_instruction = solana_program::instruction::Instruction {
+            program_id: *metadata_program_info.key,
+            // CreateMetadataAccountsV3 accounts
+            // 0. metadata: Uninitialized metadata account (writable)
+            // 1. mint: Pool mint account (read-only)
+            // 2. mint_authority: Mint authority (read-only)
+            // 3. payer: Payer account (writable, signer)
+            // 4. update_authority: Update authority (read-only, signer)
+            // 5. system_program: System program (read-only)
+            // 6. rent: Rent sysvar (read-only)
+            accounts: vec![
+                solana_program::instruction::AccountMeta::new(*metadata_info.key, false),
+                solana_program::instruction::AccountMeta::new_readonly(*pool_mint_info.key, false),
+                solana_program::instruction::AccountMeta::new_readonly(*mint_authority_info.key, false),
+                solana_program::instruction::AccountMeta::new(*payer_info.key, true),
+                solana_program::instruction::AccountMeta::new_readonly(*mint_authority_info.key, true),
+                solana_program::instruction::AccountMeta::new_readonly(*system_program_info.key, false),
+                solana_program::instruction::AccountMeta::new_readonly(*rent_info.key, false),
+            ],
+            data: instruction_data,
+        };
+
+        invoke_signed(
+            &create_metadata_instruction,
+            &[
+                metadata_info.clone(),
+                pool_mint_info.clone(),
+                mint_authority_info.clone(),
+                payer_info.clone(),
+                mint_authority_info.clone(),
+                system_program_info.clone(),
+                rent_info.clone(),
+                metadata_program_info.clone(),
+            ],
+            &[&authority_signer_seeds],
+        )?;
+
+        Ok(())
+    }
+
+    /// Processes an [UpdateMetadata](enum.Instruction.html).
+    pub fn process_update_metadata(
+        program_id: &Pubkey,
+        accounts: &[AccountInfo],
+        name: Option<String>,
+        symbol: Option<String>,
+        uri: Option<String>,
+        new_update_authority: Option<Pubkey>,
+    ) -> ProgramResult {
+        let account_info_iter = &mut accounts.iter();
+        let swap_info = next_account_info(account_info_iter)?;
+        let metadata_info = next_account_info(account_info_iter)?;
+        let update_authority_info = next_account_info(account_info_iter)?;
+        let metadata_program_info = next_account_info(account_info_iter)?;
+
+        // Verify the swap account is initialized
+        let token_swap = SwapVersion::unpack(&swap_info.data.borrow())?;
+
+        // Verify update authority is the swap authority
+        let (swap_authority, _bump_seed) =
+            Pubkey::find_program_address(&[&swap_info.key.to_bytes()], program_id);
+        if *update_authority_info.key != swap_authority {
+            return Err(SwapError::InvalidProgramAddress.into());
+        }
+
+        // Verify the metadata program is the expected Token Metadata program
+        if *metadata_program_info.key != TOKEN_METADATA_PROGRAM_ID {
+            return Err(ProgramError::IncorrectProgramId);
+        }
+
+        // Check if at least one field is provided for update
+        if name.is_none() && symbol.is_none() && uri.is_none() && new_update_authority.is_none() {
+            msg!("Error: At least one metadata field must be provided for update");
+            return Err(ProgramError::InvalidInstructionData);
+        }
+
+        // Build the update_metadata_accounts_v2 instruction for Token Metadata program
+        const UPDATE_METADATA_ACCOUNTS_V2_DISCRIMINATOR: u8 = 15;
+
+        let mut instruction_data = vec![UPDATE_METADATA_ACCOUNTS_V2_DISCRIMINATOR];
+
+        // Serialize UpdateArgs:
+        // - new_update_authority: Option<Pubkey>
+        match new_update_authority {
+            None => instruction_data.push(0),
+            Some(authority) => {
+                instruction_data.push(1);
+                instruction_data.extend_from_slice(authority.as_ref());
+            }
+        }
+
+        // - data: Option<DataV2> (Some - we're updating metadata fields)
+        instruction_data.push(1);
+
+        // Pack DataV2 fields (use provided values or defaults)
+        Self::pack_string(&mut instruction_data, &name.unwrap_or_default());
+        Self::pack_string(&mut instruction_data, &symbol.unwrap_or_default());
+        Self::pack_string(&mut instruction_data, &uri.unwrap_or_default());
+
+        instruction_data.extend_from_slice(&0u16.to_le_bytes()); // seller_fee_basis_points: 0
+        instruction_data.push(0); // creators: None
+        instruction_data.push(0); // collection: None
+        instruction_data.push(0); // uses: None
+        instruction_data.push(0); // primary_sale_happened: None
+        instruction_data.push(0); // is_mutable: None
+
+        // Get swap authority for signing
+        let authority_signer_seeds = [
+            &swap_info.key.to_bytes()[..32],
+            &[token_swap.bump_seed()],
+        ];
+
+        // Create CPI to Token Metadata program
+        let update_metadata_instruction = solana_program::instruction::Instruction {
+            program_id: *metadata_program_info.key,
+            // UpdateMetadataAccountsV2 accounts:
+            // 0. metadata: Metadata account (writable)
+            // 1. update_authority: Update authority (signer)
+            accounts: vec![
+                solana_program::instruction::AccountMeta::new(*metadata_info.key, false),
+                solana_program::instruction::AccountMeta::new_readonly(
+                    *update_authority_info.key,
+                    true,
+                ),
+            ],
+            data: instruction_data,
+        };
+
+        invoke_signed(
+            &update_metadata_instruction,
+            &[
+                metadata_info.clone(),
+                update_authority_info.clone(),
+                metadata_program_info.clone(),
+            ],
+            &[&authority_signer_seeds],
+        )?;
+
+        Ok(())
+    }
+
     /// Processes an [Instruction](enum.Instruction.html).
     pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], input: &[u8]) -> ProgramResult {
         Self::process_with_constraints(program_id, accounts, input, &SWAP_CONSTRAINTS)
@@ -1087,6 +1316,30 @@ impl Processor {
                     destination_token_amount,
                     maximum_pool_token_amount,
                     accounts,
+                )
+            }
+            SwapInstruction::InitializeMetadata(InitializeMetadata {
+                name,
+                symbol,
+                uri,
+            }) => {
+                msg!("Instruction: InitializeMetadata");
+                Self::process_initialize_metadata(program_id, accounts, name, symbol, uri)
+            }
+            SwapInstruction::UpdateMetadata(UpdateMetadata {
+                name,
+                symbol,
+                uri,
+                new_update_authority,
+            }) => {
+                msg!("Instruction: UpdateMetadata");
+                Self::process_update_metadata(
+                    program_id,
+                    accounts,
+                    name,
+                    symbol,
+                    uri,
+                    new_update_authority,
                 )
             }
         }

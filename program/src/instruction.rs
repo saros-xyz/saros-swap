@@ -78,6 +78,30 @@ pub struct DepositSingleTokenTypeExactAmountIn {
     pub minimum_pool_token_amount: u64,
 }
 
+/// InitializeMetadata instruction data
+#[derive(Clone, Debug, PartialEq)]
+pub struct InitializeMetadata {
+    /// Token name
+    pub name: String,
+    /// Token symbol
+    pub symbol: String,
+    /// Token URI
+    pub uri: String,
+}
+
+/// UpdateMetadata instruction data for fungible tokens
+#[derive(Clone, Debug, PartialEq)]
+pub struct UpdateMetadata {
+    /// Optional new name
+    pub name: Option<String>,
+    /// Optional new symbol
+    pub symbol: Option<String>,
+    /// Optional new URI
+    pub uri: Option<String>,
+    /// Optional new update authority (to transfer metadata ownership)
+    pub new_update_authority: Option<Pubkey>,
+}
+
 /// WithdrawAllTokenTypes instruction data
 #[cfg_attr(feature = "fuzz", derive(Arbitrary))]
 #[repr(C)]
@@ -185,6 +209,26 @@ pub enum SwapInstruction {
     ///   8. `[writable]` Fee account, to receive withdrawal fees
     ///   9. '[]` Token program id
     WithdrawSingleTokenTypeExactAmountOut(WithdrawSingleTokenTypeExactAmountOut),
+
+    ///   Initialize metadata for the pool token mint in a custom metadata account.
+    ///
+    ///   0. `[]` Token-swap account
+    ///   1. `[]` Pool token mint
+    ///   2. `[writable]` Metadata account (PDA)
+    ///   3. `[]` Mint authority (swap authority PDA)
+    ///   4. `[signer]` Payer
+    ///   5. `[]` System program
+    ///   6. `[]` Rent sysvar
+    ///   7. `[]` Token Metadata program
+    InitializeMetadata(InitializeMetadata),
+
+    ///   Update metadata for the pool token mint.
+    ///
+    ///   0. `[]` Token-swap account
+    ///   1. `[writable]` Metadata account (PDA)
+    ///   2. `[]` Update authority (swap authority PDA)
+    ///   3. `[]` Token Metadata program
+    UpdateMetadata(UpdateMetadata),
 }
 
 impl SwapInstruction {
@@ -246,6 +290,36 @@ impl SwapInstruction {
                     maximum_pool_token_amount,
                 })
             }
+            6 => {
+                // Unpack string fields: name, symbol, uri
+                let name = Self::unpack_string(rest)?;
+                let rest = &rest[4 + name.len()..];
+
+                let symbol = Self::unpack_string(rest)?;
+                let rest = &rest[4 + symbol.len()..];
+
+                let uri = Self::unpack_string(rest)?;
+
+                Self::InitializeMetadata(InitializeMetadata {
+                    name,
+                    symbol,
+                    uri,
+                })
+            }
+            7 => {
+                // Unpack optional string fields: name, symbol, uri, new_update_authority
+                let (name, rest) = Self::unpack_option_string(rest)?;
+                let (symbol, rest) = Self::unpack_option_string(rest)?;
+                let (uri, rest) = Self::unpack_option_string(rest)?;
+                let (new_update_authority, _rest) = Self::unpack_option_pubkey(rest)?;
+
+                Self::UpdateMetadata(UpdateMetadata {
+                    name,
+                    symbol,
+                    uri,
+                    new_update_authority,
+                })
+            }
             _ => return Err(SwapError::InvalidInstruction.into()),
         })
     }
@@ -261,6 +335,68 @@ impl SwapInstruction {
             Ok((amount, rest))
         } else {
             Err(SwapError::InvalidInstruction.into())
+        }
+    }
+
+    fn unpack_string(input: &[u8]) -> Result<String, ProgramError> {
+        if input.len() < 4 {
+            return Err(SwapError::InvalidInstruction.into());
+        }
+        let len = u32::from_le_bytes(
+            input[..4]
+                .try_into()
+                .map_err(|_| SwapError::InvalidInstruction)?,
+        ) as usize;
+
+        if input.len() < 4 + len {
+            return Err(SwapError::InvalidInstruction.into());
+        }
+
+        String::from_utf8(input[4..4 + len].to_vec())
+            .map_err(|_| SwapError::InvalidInstruction.into())
+    }
+
+    fn unpack_option_string(input: &[u8]) -> Result<(Option<String>, &[u8]), ProgramError> {
+        if input.is_empty() {
+            return Err(SwapError::InvalidInstruction.into());
+        }
+
+        let is_some = input[0];
+        let rest = &input[1..];
+
+        match is_some {
+            0 => Ok((None, rest)),
+            1 => {
+                let s = Self::unpack_string(rest)?;
+                let consumed = 4 + s.len();
+                Ok((Some(s), &rest[consumed..]))
+            }
+            _ => Err(SwapError::InvalidInstruction.into()),
+        }
+    }
+
+    fn unpack_option_pubkey(input: &[u8]) -> Result<(Option<Pubkey>, &[u8]), ProgramError> {
+        if input.is_empty() {
+            return Err(SwapError::InvalidInstruction.into());
+        }
+
+        let is_some = input[0];
+        let rest = &input[1..];
+
+        match is_some {
+            0 => Ok((None, rest)),
+            1 => {
+                if rest.len() < 32 {
+                    return Err(SwapError::InvalidInstruction.into());
+                }
+                let pubkey = Pubkey::new_from_array(
+                    rest[..32]
+                        .try_into()
+                        .map_err(|_| SwapError::InvalidInstruction)?,
+                );
+                Ok((Some(pubkey), &rest[32..]))
+            }
+            _ => Err(SwapError::InvalidInstruction.into()),
         }
     }
 
@@ -323,8 +459,58 @@ impl SwapInstruction {
                 buf.extend_from_slice(&destination_token_amount.to_le_bytes());
                 buf.extend_from_slice(&maximum_pool_token_amount.to_le_bytes());
             }
+            Self::InitializeMetadata(
+                InitializeMetadata {
+                    name,
+                    symbol,
+                    uri
+                }) => {
+                buf.push(6);
+                Self::pack_string(&mut buf, name);
+                Self::pack_string(&mut buf, symbol);
+                Self::pack_string(&mut buf, uri);
+            }
+            Self::UpdateMetadata(
+                UpdateMetadata {
+                    name,
+                    symbol,
+                    uri,
+                    new_update_authority,
+                }) => {
+                buf.push(7);
+                Self::pack_option_string(&mut buf, name);
+                Self::pack_option_string(&mut buf, symbol);
+                Self::pack_option_string(&mut buf, uri);
+                Self::pack_option_pubkey(&mut buf, new_update_authority);
+            }
         }
         buf
+    }
+
+    fn pack_string(buf: &mut Vec<u8>, s: &str) {
+        let bytes = s.as_bytes();
+        buf.extend_from_slice(&(bytes.len() as u32).to_le_bytes());
+        buf.extend_from_slice(bytes);
+    }
+
+    fn pack_option_string(buf: &mut Vec<u8>, opt: &Option<String>) {
+        match opt {
+            None => buf.push(0),
+            Some(s) => {
+                buf.push(1);
+                Self::pack_string(buf, s);
+            }
+        }
+    }
+
+    fn pack_option_pubkey(buf: &mut Vec<u8>, opt: &Option<Pubkey>) {
+        match opt {
+            None => buf.push(0),
+            Some(pubkey) => {
+                buf.push(1);
+                buf.extend_from_slice(pubkey.as_ref());
+            }
+        }
     }
 }
 
@@ -552,6 +738,66 @@ pub fn swap(
     })
 }
 
+/// Creates an 'initialize_metadata' instruction.
+pub fn initialize_metadata(
+    program_id: &Pubkey,
+    swap_pubkey: &Pubkey,
+    pool_mint_pubkey: &Pubkey,
+    metadata_pubkey: &Pubkey,
+    mint_authority_pubkey: &Pubkey,
+    payer_pubkey: &Pubkey,
+    system_program_id: &Pubkey,
+    rent_sysvar_id: &Pubkey,
+    metadata_program_id: &Pubkey,
+    instruction: InitializeMetadata
+) -> Result<Instruction, ProgramError> {
+    let data = SwapInstruction::InitializeMetadata(instruction)
+    .pack();
+
+    let accounts = vec![
+        AccountMeta::new_readonly(*swap_pubkey, false),
+        AccountMeta::new_readonly(*pool_mint_pubkey, false),
+        AccountMeta::new(*metadata_pubkey, false),
+        AccountMeta::new_readonly(*mint_authority_pubkey, false),
+        AccountMeta::new(*payer_pubkey, true),
+        AccountMeta::new_readonly(*system_program_id, false),
+        AccountMeta::new_readonly(*rent_sysvar_id, false),
+        AccountMeta::new_readonly(*metadata_program_id, false),
+    ];
+
+    Ok(Instruction {
+        program_id: *program_id,
+        accounts,
+        data,
+    })
+}
+
+/// Creates an 'update_metadata' instruction.
+pub fn update_metadata(
+    program_id: &Pubkey,
+    swap_pubkey: &Pubkey,
+    metadata_pubkey: &Pubkey,
+    update_authority_pubkey: &Pubkey,
+    metadata_program_id: &Pubkey,
+    instruction: UpdateMetadata
+) -> Result<Instruction, ProgramError> {
+    let data = SwapInstruction::UpdateMetadata(instruction)
+    .pack();
+
+    let accounts = vec![
+        AccountMeta::new_readonly(*swap_pubkey, false),
+        AccountMeta::new(*metadata_pubkey, false),
+        AccountMeta::new_readonly(*update_authority_pubkey, false),
+        AccountMeta::new_readonly(*metadata_program_id, false),
+    ];
+
+    Ok(Instruction {
+        program_id: *program_id,
+        accounts,
+        data,
+    })
+}
+
 /// Unpacks a reference from a bytes buffer.
 /// TODO actually pack / unpack instead of relying on normal memory layout.
 pub fn unpack<T>(input: &[u8]) -> Result<&T, ProgramError> {
@@ -707,6 +953,67 @@ mod tests {
         expect.extend_from_slice(&maximum_pool_token_amount.to_le_bytes());
         assert_eq!(packed, expect);
         let unpacked = SwapInstruction::unpack(&expect).unwrap();
+        assert_eq!(unpacked, check);
+    }
+
+    #[test]
+    fn pack_initialize_metadata() {
+        let name = String::from("Test Token");
+        let symbol = String::from("TST");
+        let uri = String::from("https://example.com/token-metadata.json");
+        let check = SwapInstruction::InitializeMetadata(InitializeMetadata {
+            name: name.clone(),
+            symbol: symbol.clone(),
+            uri: uri.clone(),
+        });
+        let packed = check.pack();
+        let mut expect = vec![6];
+        expect.extend_from_slice(&(name.len() as u32).to_le_bytes());
+        expect.extend_from_slice(name.as_bytes());
+        expect.extend_from_slice(&(symbol.len() as u32).to_le_bytes());
+        expect.extend_from_slice(symbol.as_bytes());
+        expect.extend_from_slice(&(uri.len() as u32).to_le_bytes());
+        expect.extend_from_slice(uri.as_bytes());
+        assert_eq!(packed, expect);
+        let unpacked = SwapInstruction::unpack(&expect).unwrap();
+        assert_eq!(unpacked, check);
+        let unpacked = SwapInstruction::unpack(&packed).unwrap();
+        assert_eq!(unpacked, check);
+    }
+
+    #[test]
+    fn pack_update_metadata() {
+        let name = Some(String::from("Updated Token"));
+        let symbol = Some(String::from("UPD"));
+        let uri = Some(String::from("https://example.com/updated-metadata.json"));
+        let new_update_authority = Some(Pubkey::new_unique());
+        let check = SwapInstruction::UpdateMetadata(UpdateMetadata {
+            name: name.clone(),
+            symbol: symbol.clone(),
+            uri: uri.clone(),
+            new_update_authority: new_update_authority.clone(),
+        });
+        let packed = check.pack();
+        let mut expect = vec![7];
+        // name
+        expect.push(1);
+        expect.extend_from_slice(&(name.as_ref().unwrap().len() as u32).to_le_bytes());
+        expect.extend_from_slice(name.as_ref().unwrap().as_bytes());
+        // symbol
+        expect.push(1);
+        expect.extend_from_slice(&(symbol.as_ref().unwrap().len() as u32).to_le_bytes());
+        expect.extend_from_slice(symbol.as_ref().unwrap().as_bytes());
+        // uri
+        expect.push(1);
+        expect.extend_from_slice(&(uri.as_ref().unwrap().len() as u32).to_le_bytes());
+        expect.extend_from_slice(uri.as_ref().unwrap().as_bytes());
+        // new_update_authority
+        expect.push(1);
+        expect.extend_from_slice(new_update_authority.as_ref().unwrap().as_ref());
+        assert_eq!(packed, expect);
+        let unpacked = SwapInstruction::unpack(&expect).unwrap();
+        assert_eq!(unpacked, check);
+        let unpacked = SwapInstruction::unpack(&packed).unwrap();
         assert_eq!(unpacked, check);
     }
 }
