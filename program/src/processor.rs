@@ -1464,7 +1464,6 @@ impl Processor {
             &[
                 metadata_info.clone(),
                 update_authority_info.clone(),
-                metadata_program_info.clone(),
             ],
             &[&authority_signer_seeds],
         )?;
