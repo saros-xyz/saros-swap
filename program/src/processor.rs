@@ -16,7 +16,7 @@ use crate::{
         calculator::{RoundDirection, TradeDirection},
         fees::Fees,
     },
-    error::SwapError,
+    error::{SwapError},
     instruction::{
         DepositAllTokenTypes, DepositSingleTokenTypeExactAmountIn, Initialize,
         Swap, SwapInstruction, UpdateMetadata, WithdrawAllTokenTypes,
@@ -24,6 +24,7 @@ use crate::{
     },
     state::{SwapState, SwapV1, SwapVersion},
 };
+use borsh::BorshSerialize;
 use num_traits::FromPrimitive;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
@@ -37,6 +38,58 @@ use solana_program::{
     pubkey::Pubkey,
 };
 use std::convert::TryInto;
+
+/// DataV2 struct for Token Metadata CreateMetadataAccountsV3
+#[derive(BorshSerialize)]
+struct DataV2 {
+    name: String,
+    symbol: String,
+    uri: String,
+    seller_fee_basis_points: u16,
+    creators: Option<Vec<Creator>>,
+    collection: Option<Collection>,
+    uses: Option<Uses>,
+}
+
+#[derive(BorshSerialize)]
+struct Creator {
+    address: Pubkey,
+    verified: bool,
+    share: u8,
+}
+
+#[derive(BorshSerialize)]
+struct Collection {
+    verified: bool,
+    key: Pubkey,
+}
+
+#[derive(BorshSerialize)]
+struct Uses {
+    use_method: UseMethod,
+    remaining: u64,
+    total: u64,
+}
+
+#[derive(BorshSerialize)]
+enum UseMethod {
+    Burn,
+    Multiple,
+    Single,
+}
+
+/// CreateMetadataAccountsV3 instruction args
+#[derive(BorshSerialize)]
+struct CreateMetadataAccountsV3Args {
+    data: DataV2,
+    is_mutable: bool,
+    collection_details: Option<CollectionDetails>,
+}
+
+#[derive(BorshSerialize)]
+enum CollectionDetails {
+    V1 { size: u64 },
+}
 
 /// Program state handler.
 pub struct Processor {}
@@ -1244,24 +1297,32 @@ impl Processor {
             return Err(ProgramError::InvalidSeeds);
         }
 
-        let mut instruction_data = vec![CREATE_METADATA_ACCOUNTS_V3_DISCRIMINATOR];
-
-        // Serialize DataV2 struct with hardcoded metadata values
-        Self::pack_string(&mut instruction_data, DEFAULT_POOL_TOKEN_NAME);
-        Self::pack_string(&mut instruction_data, DEFAULT_POOL_TOKEN_SYMBOL);
-        Self::pack_string(&mut instruction_data, DEFAULT_POOL_TOKEN_URI);
-
-        instruction_data.extend_from_slice(&0u16.to_le_bytes()); // seller_fee_basis_points: 0
-        instruction_data.push(0); // creators: None
-        instruction_data.push(0); // collection: None
-        instruction_data.push(0); // uses: None
-        instruction_data.push(1); // is_mutable: true
-
         // Get swap authority for signing
         let authority_signer_seeds = [
             &swap_info.key.to_bytes()[..32],
             &[token_swap.bump_seed()],
         ];
+
+        // Build the CreateMetadataAccountsV3 instruction data with proper Borsh serialization
+        let metadata_data = DataV2 {
+            name: DEFAULT_POOL_TOKEN_NAME.to_string(),
+            symbol: DEFAULT_POOL_TOKEN_SYMBOL.to_string(),
+            uri: DEFAULT_POOL_TOKEN_URI.to_string(),
+            seller_fee_basis_points: 0,
+            creators: None,
+            collection: None,
+            uses: None,
+        };
+
+        let args = CreateMetadataAccountsV3Args {
+            data: metadata_data,
+            is_mutable: true,
+            collection_details: None,
+        };
+
+        // Serialize with discriminator
+        let mut instruction_data = vec![CREATE_METADATA_ACCOUNTS_V3_DISCRIMINATOR];
+        instruction_data.extend_from_slice(&args.try_to_vec().map_err(|_| ProgramError::InvalidInstructionData)?);
 
         // Create CPI to Token Metadata program
         let create_metadata_instruction = solana_program::instruction::Instruction {
