@@ -27,6 +27,7 @@ roots = { version = "0.0.7", optional = true }
 # dependencies-fix
 num_enum = "~0.4.3"
 proc-macro-crate = "~1.2.1"
+borsh = "0.9.3"
 
 
 [dev-dependencies]
