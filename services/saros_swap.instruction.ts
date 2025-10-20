@@ -1,7 +1,7 @@
 import {
   BorshService,
-  TOKEN_PROGRAM_ID
-} from '@coin98/solana-support-library';
+} from './libraries/borsh.service';
+import { TOKEN_PROGRAM_ID } from './libraries/token_program_instruction.service';
 import * as borsh from '@project-serum/borsh';
 import {
   AccountMeta,
@@ -188,6 +188,59 @@ export class SarosSwapInstructionService {
       instruction: 1, // Swap instruction
       amountIn: tokenInAmount,
       minimumAmountOut: minimumTokenOutAmount,
+    };
+    const data = BorshService.serialize(dataLayout, request, 128);
+
+    const [poolAuthorityAddress,] = this.findPoolAuthorityAddress(
+      poolAddress,
+      sarosSwapProgramId,
+    );
+    const keys: AccountMeta[] = [
+      <AccountMeta>{ pubkey: poolAddress, isSigner: false, isWritable: false },
+      <AccountMeta>{ pubkey: poolAuthorityAddress, isSigner: false, isWritable: false },
+      <AccountMeta>{ pubkey: userDelegateAddress, isSigner: true, isWritable: false },
+      <AccountMeta>{ pubkey: userTokenInAddress, isSigner: false, isWritable: true },
+      <AccountMeta>{ pubkey: poolTokenInAddress, isSigner: false, isWritable: true },
+      <AccountMeta>{ pubkey: poolTokenOutAddress, isSigner: false, isWritable: true },
+      <AccountMeta>{ pubkey: userTokenOutAddress, isSigner: false, isWritable: true },
+      <AccountMeta>{ pubkey: poolLpTokenMintAddress, isSigner: false, isWritable: true },
+      <AccountMeta>{ pubkey: protocolLpTokenAddress, isSigner: false, isWritable: true },
+      <AccountMeta>{ pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+    ];
+    if (partnerLpTokenAddress !== null) {
+      keys.push(<AccountMeta>{ pubkey: partnerLpTokenAddress, isSigner: false, isWritable: true });
+    }
+
+    return new TransactionInstruction({
+      data,
+      keys,
+      programId: sarosSwapProgramId,
+    });
+  }
+
+  static swapExactOut(
+    poolAddress: PublicKey,
+    poolTokenInAddress: PublicKey,
+    poolTokenOutAddress: PublicKey,
+    poolLpTokenMintAddress: PublicKey,
+    protocolLpTokenAddress: PublicKey,
+    userDelegateAddress: PublicKey,
+    userTokenInAddress: PublicKey,
+    userTokenOutAddress: PublicKey,
+    tokenOutAmount: BN,
+    maximumTokenInAmount: BN,
+    partnerLpTokenAddress: PublicKey | null,
+    sarosSwapProgramId: PublicKey,
+  ): TransactionInstruction {
+    const dataLayout = borsh.struct([
+      borsh.u8('instruction'),
+      borsh.u64('amountOut'),
+      borsh.u64('maximumAmountIn'),
+    ]);
+    const request = {
+      instruction: 6, // Swap instruction
+      amountOut: tokenOutAmount,
+      maximumAmountIn: maximumTokenInAmount,
     };
     const data = BorshService.serialize(dataLayout, request, 128);
 
