@@ -91,6 +91,15 @@ enum CollectionDetails {
     V1 { size: u64 },
 }
 
+/// UpdateMetadataAccountsV2 instruction args
+#[derive(BorshSerialize)]
+struct UpdateMetadataAccountsV2Args {
+    new_update_authority: Option<Pubkey>,
+    data: Option<DataV2>,
+    primary_sale_happened: Option<bool>,
+    is_mutable: Option<bool>,
+}
+
 /// Program state handler.
 pub struct Processor {}
 impl Processor {
@@ -1401,32 +1410,32 @@ impl Processor {
             return Err(ProgramError::InvalidInstructionData);
         }
 
+        // Build the data field only if any metadata field is being updated
+        let data = if name.is_some() || symbol.is_some() || uri.is_some() {
+            Some(DataV2 {
+                name: name.unwrap_or_default(),
+                symbol: symbol.unwrap_or_default(),
+                uri: uri.unwrap_or_default(),
+                seller_fee_basis_points: 0,
+                creators: None,
+                collection: None,
+                uses: None,
+            })
+        } else {
+            None
+        };
+
+        // Build UpdateMetadataAccountsV2 args with proper Borsh serialization
+        let args = UpdateMetadataAccountsV2Args {
+            new_update_authority,
+            data,
+            primary_sale_happened: None,
+            is_mutable: None,
+        };
+
+        // Serialize with discriminator
         let mut instruction_data = vec![UPDATE_METADATA_ACCOUNTS_V2_DISCRIMINATOR];
-
-        // Serialize UpdateArgs:
-        // - new_update_authority: Option<Pubkey>
-        match new_update_authority {
-            None => instruction_data.push(0),
-            Some(authority) => {
-                instruction_data.push(1);
-                instruction_data.extend_from_slice(authority.as_ref());
-            }
-        }
-
-        // - data: Option<DataV2> (Some - we're updating metadata fields)
-        instruction_data.push(1);
-
-        // Pack DataV2 fields (use provided values or defaults)
-        Self::pack_string(&mut instruction_data, &name.unwrap_or_default());
-        Self::pack_string(&mut instruction_data, &symbol.unwrap_or_default());
-        Self::pack_string(&mut instruction_data, &uri.unwrap_or_default());
-
-        instruction_data.extend_from_slice(&0u16.to_le_bytes()); // seller_fee_basis_points: 0
-        instruction_data.push(0); // creators: None
-        instruction_data.push(0); // collection: None
-        instruction_data.push(0); // uses: None
-        instruction_data.push(0); // primary_sale_happened: None
-        instruction_data.push(0); // is_mutable: None
+        instruction_data.extend_from_slice(&args.try_to_vec().map_err(|_| ProgramError::InvalidInstructionData)?);
 
         // Get swap authority for signing
         let authority_signer_seeds = [
