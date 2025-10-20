@@ -89,17 +89,6 @@ pub struct DepositSingleTokenTypeExactAmountIn {
     pub minimum_pool_token_amount: u64,
 }
 
-/// InitializeMetadata instruction data
-#[derive(Clone, Debug, PartialEq)]
-pub struct InitializeMetadata {
-    /// Token name
-    pub name: String,
-    /// Token symbol
-    pub symbol: String,
-    /// Token URI
-    pub uri: String,
-}
-
 /// UpdateMetadata instruction data for fungible tokens
 #[derive(Clone, Debug, PartialEq)]
 pub struct UpdateMetadata {
@@ -246,7 +235,7 @@ pub enum SwapInstruction {
     ///   5. `[]` System program
     ///   6. `[]` Rent sysvar
     ///   7. `[]` Token Metadata program
-    InitializeMetadata(InitializeMetadata),
+    InitializeMetadata,
 
     ///   Update metadata for the pool token mint.
     ///
@@ -325,20 +314,7 @@ impl SwapInstruction {
                 })
             }
             7 => {
-                // Unpack string fields: name, symbol, uri
-                let name = Self::unpack_string(rest)?;
-                let rest = &rest[4 + name.len()..];
-
-                let symbol = Self::unpack_string(rest)?;
-                let rest = &rest[4 + symbol.len()..];
-
-                let uri = Self::unpack_string(rest)?;
-
-                Self::InitializeMetadata(InitializeMetadata {
-                    name,
-                    symbol,
-                    uri,
-                })
+                Self::InitializeMetadata
             }
             8 => {
                 // Unpack optional string fields: name, symbol, uri, new_update_authority
@@ -501,16 +477,9 @@ impl SwapInstruction {
                 buf.extend_from_slice(&amount_out.to_le_bytes());
                 buf.extend_from_slice(&maximum_amount_in.to_le_bytes());
             }
-            Self::InitializeMetadata(
-                InitializeMetadata {
-                    name,
-                    symbol,
-                    uri
-                }) => {
+            Self::InitializeMetadata => {
                 buf.push(7);
-                Self::pack_string(&mut buf, name);
-                Self::pack_string(&mut buf, symbol);
-                Self::pack_string(&mut buf, uri);
+                // No data to pack - metadata values are hardcoded in the processor
             }
             Self::UpdateMetadata(
                 UpdateMetadata {
@@ -832,10 +801,8 @@ pub fn initialize_metadata(
     system_program_id: &Pubkey,
     rent_sysvar_id: &Pubkey,
     metadata_program_id: &Pubkey,
-    instruction: InitializeMetadata
 ) -> Result<Instruction, ProgramError> {
-    let data = SwapInstruction::InitializeMetadata(instruction)
-    .pack();
+    let data = SwapInstruction::InitializeMetadata.pack();
 
     let accounts = vec![
         AccountMeta::new_readonly(*swap_pubkey, false),
@@ -1040,22 +1007,9 @@ mod tests {
 
     #[test]
     fn pack_initialize_metadata() {
-        let name = String::from("Test Token");
-        let symbol = String::from("TST");
-        let uri = String::from("https://example.com/token-metadata.json");
-        let check = SwapInstruction::InitializeMetadata(InitializeMetadata {
-            name: name.clone(),
-            symbol: symbol.clone(),
-            uri: uri.clone(),
-        });
+        let check = SwapInstruction::InitializeMetadata;
         let packed = check.pack();
-        let mut expect = vec![6];
-        expect.extend_from_slice(&(name.len() as u32).to_le_bytes());
-        expect.extend_from_slice(name.as_bytes());
-        expect.extend_from_slice(&(symbol.len() as u32).to_le_bytes());
-        expect.extend_from_slice(symbol.as_bytes());
-        expect.extend_from_slice(&(uri.len() as u32).to_le_bytes());
-        expect.extend_from_slice(uri.as_bytes());
+        let expect = vec![7]; // Just the instruction discriminator, no data
         assert_eq!(packed, expect);
         let unpacked = SwapInstruction::unpack(&expect).unwrap();
         assert_eq!(unpacked, check);

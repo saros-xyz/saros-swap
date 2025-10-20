@@ -1,5 +1,13 @@
 //! Program state processor
 
+use crate::constants::{
+    DEFAULT_POOL_TOKEN_NAME,
+    DEFAULT_POOL_TOKEN_SYMBOL,
+    DEFAULT_POOL_TOKEN_URI,
+    CREATE_METADATA_ACCOUNTS_V3_DISCRIMINATOR,
+    UPDATE_METADATA_ACCOUNTS_V2_DISCRIMINATOR,
+    TOKEN_METADATA_PROGRAM_ID
+};
 use crate::constraints::{SwapConstraints, SWAP_CONSTRAINTS};
 use crate::instruction::SwapExactOut;
 use crate::{
@@ -10,7 +18,7 @@ use crate::{
     },
     error::SwapError,
     instruction::{
-        DepositAllTokenTypes, DepositSingleTokenTypeExactAmountIn, Initialize, InitializeMetadata,
+        DepositAllTokenTypes, DepositSingleTokenTypeExactAmountIn, Initialize,
         Swap, SwapInstruction, UpdateMetadata, WithdrawAllTokenTypes,
         WithdrawSingleTokenTypeExactAmountOut,
     },
@@ -26,13 +34,9 @@ use solana_program::{
     program_error::{PrintProgramError, ProgramError},
     program_option::COption,
     program_pack::Pack,
-    pubkey,
     pubkey::Pubkey,
 };
 use std::convert::TryInto;
-
-/// Token Metadata Program ID
-const TOKEN_METADATA_PROGRAM_ID: Pubkey = pubkey!("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s");
 
 /// Program state handler.
 pub struct Processor {}
@@ -1194,9 +1198,6 @@ impl Processor {
     pub fn process_initialize_metadata(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
-        name: String,
-        symbol: String,
-        uri: String,
     ) -> ProgramResult {
         let account_info_iter = &mut accounts.iter();
         let swap_info = next_account_info(account_info_iter)?;
@@ -1243,15 +1244,12 @@ impl Processor {
             return Err(ProgramError::InvalidSeeds);
         }
 
-        // Build the create_metadata_accounts_v3 instruction for Token Metadata program
-        const CREATE_METADATA_ACCOUNTS_V3_DISCRIMINATOR: u8 = 33;
-
         let mut instruction_data = vec![CREATE_METADATA_ACCOUNTS_V3_DISCRIMINATOR];
 
-        // Serialize DataV2 struct
-        Self::pack_string(&mut instruction_data, &name);
-        Self::pack_string(&mut instruction_data, &symbol);
-        Self::pack_string(&mut instruction_data, &uri);
+        // Serialize DataV2 struct with hardcoded metadata values
+        Self::pack_string(&mut instruction_data, DEFAULT_POOL_TOKEN_NAME);
+        Self::pack_string(&mut instruction_data, DEFAULT_POOL_TOKEN_SYMBOL);
+        Self::pack_string(&mut instruction_data, DEFAULT_POOL_TOKEN_URI);
 
         instruction_data.extend_from_slice(&0u16.to_le_bytes()); // seller_fee_basis_points: 0
         instruction_data.push(0); // creators: None
@@ -1341,9 +1339,6 @@ impl Processor {
             msg!("Error: At least one metadata field must be provided for update");
             return Err(ProgramError::InvalidInstructionData);
         }
-
-        // Build the update_metadata_accounts_v2 instruction for Token Metadata program
-        const UPDATE_METADATA_ACCOUNTS_V2_DISCRIMINATOR: u8 = 15;
 
         let mut instruction_data = vec![UPDATE_METADATA_ACCOUNTS_V2_DISCRIMINATOR];
 
@@ -1495,13 +1490,9 @@ impl Processor {
                 msg!("Instruction: SwapExactOut");
                 Self::process_swap_exact_out(program_id, amount_out, maximum_amount_in, accounts)
             }
-            SwapInstruction::InitializeMetadata(InitializeMetadata {
-                name,
-                symbol,
-                uri,
-            }) => {
+            SwapInstruction::InitializeMetadata => {
                 msg!("Instruction: InitializeMetadata");
-                Self::process_initialize_metadata(program_id, accounts, name, symbol, uri)
+                Self::process_initialize_metadata(program_id, accounts)
             }
             SwapInstruction::UpdateMetadata(UpdateMetadata {
                 name,
