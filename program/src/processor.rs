@@ -5,7 +5,6 @@ use crate::constants::{
     DEFAULT_POOL_TOKEN_SYMBOL,
     DEFAULT_POOL_TOKEN_URI,
     CREATE_METADATA_ACCOUNTS_V3_DISCRIMINATOR,
-    UPDATE_METADATA_ACCOUNTS_V2_DISCRIMINATOR,
     TOKEN_METADATA_PROGRAM_ID
 };
 use crate::constraints::{SwapConstraints, SWAP_CONSTRAINTS};
@@ -19,7 +18,7 @@ use crate::{
     error::{SwapError},
     instruction::{
         DepositAllTokenTypes, DepositSingleTokenTypeExactAmountIn, Initialize,
-        Swap, SwapInstruction, UpdateMetadata, WithdrawAllTokenTypes,
+        Swap, SwapInstruction, WithdrawAllTokenTypes,
         WithdrawSingleTokenTypeExactAmountOut,
     },
     state::{SwapState, SwapV1, SwapVersion},
@@ -39,76 +38,9 @@ use solana_program::{
 };
 use std::convert::TryInto;
 
-/// DataV2 struct for Token Metadata CreateMetadataAccountsV3
-#[derive(BorshSerialize)]
-struct DataV2 {
-    name: String,
-    symbol: String,
-    uri: String,
-    seller_fee_basis_points: u16,
-    creators: Option<Vec<Creator>>,
-    collection: Option<Collection>,
-    uses: Option<Uses>,
-}
-
-#[derive(BorshSerialize)]
-struct Creator {
-    address: Pubkey,
-    verified: bool,
-    share: u8,
-}
-
-#[derive(BorshSerialize)]
-struct Collection {
-    verified: bool,
-    key: Pubkey,
-}
-
-#[derive(BorshSerialize)]
-struct Uses {
-    use_method: UseMethod,
-    remaining: u64,
-    total: u64,
-}
-
-#[derive(BorshSerialize)]
-enum UseMethod {
-    Burn,
-    Multiple,
-    Single,
-}
-
-/// CreateMetadataAccountsV3 instruction args
-#[derive(BorshSerialize)]
-struct CreateMetadataAccountsV3Args {
-    data: DataV2,
-    is_mutable: bool,
-    collection_details: Option<CollectionDetails>,
-}
-
-#[derive(BorshSerialize)]
-enum CollectionDetails {
-    V1 { size: u64 },
-}
-
-/// UpdateMetadataAccountsV2 instruction args
-#[derive(BorshSerialize)]
-struct UpdateMetadataAccountsV2Args {
-    new_update_authority: Option<Pubkey>,
-    data: Option<DataV2>,
-    primary_sale_happened: Option<bool>,
-    is_mutable: Option<bool>,
-}
-
 /// Program state handler.
 pub struct Processor {}
 impl Processor {
-    /// Helper function to pack a string with length prefix for metadata instructions
-    #[inline]
-    fn pack_string(data: &mut Vec<u8>, s: &str) {
-        data.extend_from_slice(&(s.len() as u32).to_le_bytes());
-        data.extend_from_slice(s.as_bytes());
-    }
 
     /// Unpacks a spl_token `Account`.
     pub fn unpack_token_account(
@@ -1293,7 +1225,6 @@ impl Processor {
 
         // Derive metadata PDA using Token Metadata program's standard derivation
         // Seeds: ["metadata", token_metadata_program_id, mint_pubkey]
-
         let metadata_seeds = &[
             b"metadata",
             metadata_program_info.key.as_ref(),
@@ -1305,12 +1236,6 @@ impl Processor {
             msg!("Error: Metadata account is not the correct PDA");
             return Err(ProgramError::InvalidSeeds);
         }
-
-        // Get swap authority for signing
-        let authority_signer_seeds = [
-            &swap_info.key.to_bytes()[..32],
-            &[token_swap.bump_seed()],
-        ];
 
         // Build the CreateMetadataAccountsV3 instruction data with proper Borsh serialization
         let metadata_data = DataV2 {
@@ -1356,6 +1281,11 @@ impl Processor {
             data: instruction_data,
         };
 
+        // Get swap authority for signing
+        let authority_signer_seeds = [
+            &swap_info.key.to_bytes()[..32],
+            &[token_swap.bump_seed()],
+        ];
         invoke_signed(
             &create_metadata_instruction,
             &[
@@ -1367,103 +1297,6 @@ impl Processor {
                 system_program_info.clone(),
                 rent_info.clone(),
                 metadata_program_info.clone(),
-            ],
-            &[&authority_signer_seeds],
-        )?;
-
-        Ok(())
-    }
-
-    /// Processes an [UpdateMetadata](enum.Instruction.html).
-    pub fn process_update_metadata(
-        program_id: &Pubkey,
-        accounts: &[AccountInfo],
-        name: Option<String>,
-        symbol: Option<String>,
-        uri: Option<String>,
-        new_update_authority: Option<Pubkey>,
-    ) -> ProgramResult {
-        let account_info_iter = &mut accounts.iter();
-        let swap_info = next_account_info(account_info_iter)?;
-        let metadata_info = next_account_info(account_info_iter)?;
-        let update_authority_info = next_account_info(account_info_iter)?;
-        let metadata_program_info = next_account_info(account_info_iter)?;
-
-        // Verify the swap account is initialized
-        let token_swap = SwapVersion::unpack(&swap_info.data.borrow())?;
-
-        // Verify update authority is the swap authority
-        let (swap_authority, _bump_seed) =
-            Pubkey::find_program_address(&[&swap_info.key.to_bytes()], program_id);
-        if *update_authority_info.key != swap_authority {
-            return Err(SwapError::InvalidProgramAddress.into());
-        }
-
-        // Verify the metadata program is the expected Token Metadata program
-        if *metadata_program_info.key != TOKEN_METADATA_PROGRAM_ID {
-            return Err(ProgramError::IncorrectProgramId);
-        }
-
-        // Check if at least one field is provided for update
-        if name.is_none() && symbol.is_none() && uri.is_none() && new_update_authority.is_none() {
-            msg!("Error: At least one metadata field must be provided for update");
-            return Err(ProgramError::InvalidInstructionData);
-        }
-
-        // Build the data field only if any metadata field is being updated
-        let data = if name.is_some() || symbol.is_some() || uri.is_some() {
-            Some(DataV2 {
-                name: name.unwrap_or_default(),
-                symbol: symbol.unwrap_or_default(),
-                uri: uri.unwrap_or_default(),
-                seller_fee_basis_points: 0,
-                creators: None,
-                collection: None,
-                uses: None,
-            })
-        } else {
-            None
-        };
-
-        // Build UpdateMetadataAccountsV2 args with proper Borsh serialization
-        let args = UpdateMetadataAccountsV2Args {
-            new_update_authority,
-            data,
-            primary_sale_happened: None,
-            is_mutable: None,
-        };
-
-        // Serialize with discriminator
-        let mut instruction_data = vec![UPDATE_METADATA_ACCOUNTS_V2_DISCRIMINATOR];
-        instruction_data.extend_from_slice(&args.try_to_vec().map_err(|_| ProgramError::InvalidInstructionData)?);
-
-        // Get swap authority for signing
-        let authority_signer_seeds = [
-            &swap_info.key.to_bytes()[..32],
-            &[token_swap.bump_seed()],
-        ];
-
-        // Create CPI to Token Metadata program
-        let update_metadata_instruction = solana_program::instruction::Instruction {
-            program_id: *metadata_program_info.key,
-            // UpdateMetadataAccountsV2 accounts:
-            // 0. metadata: Metadata account (writable)
-            // 1. update_authority: Update authority (signer)
-            accounts: vec![
-                solana_program::instruction::AccountMeta::new(*metadata_info.key, false),
-                solana_program::instruction::AccountMeta::new_readonly(
-                    *update_authority_info.key,
-                    true,
-                ),
-            ],
-            data: instruction_data,
-        };
-
-        invoke_signed(
-            &update_metadata_instruction,
-            &[
-                metadata_info.clone(),
-                update_authority_info.clone(),
             ],
             &[&authority_signer_seeds],
         )?;
@@ -1562,22 +1395,6 @@ impl Processor {
             SwapInstruction::InitializeMetadata => {
                 msg!("Instruction: InitializeMetadata");
                 Self::process_initialize_metadata(program_id, accounts)
-            }
-            SwapInstruction::UpdateMetadata(UpdateMetadata {
-                name,
-                symbol,
-                uri,
-                new_update_authority,
-            }) => {
-                msg!("Instruction: UpdateMetadata");
-                Self::process_update_metadata(
-                    program_id,
-                    accounts,
-                    name,
-                    symbol,
-                    uri,
-                    new_update_authority,
-                )
             }
         }
     }
@@ -7373,4 +7190,56 @@ mod tests {
             )
             .unwrap();
     }
+}
+
+/// DataV2 struct for Token Metadata CreateMetadataAccountsV3
+#[derive(BorshSerialize)]
+struct DataV2 {
+    name: String,
+    symbol: String,
+    uri: String,
+    seller_fee_basis_points: u16,
+    creators: Option<Vec<Creator>>,
+    collection: Option<Collection>,
+    uses: Option<Uses>,
+}
+
+#[derive(BorshSerialize)]
+struct Creator {
+    address: Pubkey,
+    verified: bool,
+    share: u8,
+}
+
+#[derive(BorshSerialize)]
+struct Collection {
+    verified: bool,
+    key: Pubkey,
+}
+
+#[derive(BorshSerialize)]
+struct Uses {
+    use_method: UseMethod,
+    remaining: u64,
+    total: u64,
+}
+
+#[derive(BorshSerialize)]
+enum UseMethod {
+    Burn,
+    Multiple,
+    Single,
+}
+
+/// CreateMetadataAccountsV3 instruction args
+#[derive(BorshSerialize)]
+struct CreateMetadataAccountsV3Args {
+    data: DataV2,
+    is_mutable: bool,
+    collection_details: Option<CollectionDetails>,
+}
+
+#[derive(BorshSerialize)]
+enum CollectionDetails {
+    V1 { size: u64 },
 }

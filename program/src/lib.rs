@@ -17,7 +17,7 @@ mod entrypoint;
 pub use solana_program;
 
 #[cfg(feature = "mainnet")]
-solana_program::declare_id!("EfMuAUg9Rss663Z3T4ki1iRmyJVe888mcNtqY1VaB19d");
+solana_program::declare_id!("SSwapUtytfBdBn1b9NUGG6foMVPtcWgpRU32HToDUZr");
 
 #[cfg(not(feature = "mainnet"))]
 solana_program::declare_id!("StaGHXrozaggJ7a9Y8U5ak5NxxZgYVdrBG9kQwbHAes");
