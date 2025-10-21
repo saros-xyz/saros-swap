@@ -15,8 +15,5 @@ pub const DEFAULT_POOL_TOKEN_URI: &str = "https://rapid.coin98.com/MetaData/saro
 // Build the create_metadata_accounts_v3 instruction for Token Metadata program
 pub const CREATE_METADATA_ACCOUNTS_V3_DISCRIMINATOR: u8 = 33;
 
-// Build the update_metadata_accounts_v2 instruction for Token Metadata program
-pub const UPDATE_METADATA_ACCOUNTS_V2_DISCRIMINATOR: u8 = 15;
-
 /// Token Metadata Program ID
 pub const TOKEN_METADATA_PROGRAM_ID: Pubkey = pubkey!("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s");
