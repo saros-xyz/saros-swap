@@ -1,425 +1,437 @@
 {
-  "name": "saros-swap",
-  "address": "SSwapUtytfBdBn1b9NUGG6foMVPtcWgpRU32HToDUZr",
-  "version": "2.2.0",
-  "instructions": [
-    {
-      "name": "initialize",
-      "discriminator": [0],
-      "accounts": [
-        {
-          "name": "swap_info",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "authority_info"
-        },
-        {
-          "name": "token_a_info"
-        },
-        {
-          "name": "token_b_info"
-        },
-        {
-          "name": "pool_mint_info",
-          "writable": true
-        },
-        {
-          "name": "fee_account_info",
-          "writable": true
-        },
-        {
-          "name": "destination_info",
-          "writable": true
-        },
-        {
-          "name": "token_program_info"
-        }
-      ],
-      "args": [
-        {
-          "name": "fees",
-          "type": {
-            "defined": {
-              "name": "Fees"
-            }
-          }
-        },
-        {
-          "name": "swap_curve",
-          "type": {
-            "defined": {
-              "name": "SwapCurve"
-            }
-          }
-        }
-      ]
+    "address": "SSwapUtytfBdBn1b9NUGG6foMVPtcWgpRU32HToDUZr",
+    "metadata": {
+        "name": "saros-swap",
+        "version": "2.2.0",
+        "spec": "2.2.0",
+        "description": "Saros AMM"
     },
-    {
-      "name": "swap",
-      "discriminator": [1],
-      "accounts": [
+    "instructions": [
         {
-          "name": "swap_info",
-          "writable": true
+            "name": "initialize",
+            "discriminator": [0],
+            "accounts": [
+                {
+                    "name": "swap_info",
+                    "writable": true,
+                    "signer": true
+                },
+                {
+                    "name": "authority_info"
+                },
+                {
+                    "name": "token_a_info"
+                },
+                {
+                    "name": "token_b_info"
+                },
+                {
+                    "name": "pool_mint_info",
+                    "writable": true
+                },
+                {
+                    "name": "fee_account_info",
+                    "writable": true
+                },
+                {
+                    "name": "destination_info",
+                    "writable": true
+                },
+                {
+                    "name": "token_program_info"
+                }
+            ],
+            "args": [
+                {
+                    "name": "fees",
+                    "type": {
+                        "defined": {
+                            "name": "Fees"
+                        }
+                    }
+                },
+                {
+                    "name": "swap_curve",
+                    "type": {
+                        "defined": {
+                            "name": "SwapCurve"
+                        }
+                    }
+                },
+                {
+                    "name": "swap_calculator",
+                    "type": {
+                        "array": [
+                            "u8",
+                            32
+                        ]
+                    }
+                }
+            ]
         },
         {
-          "name": "authority_info",
-          "writable": true
+            "name": "swap",
+            "discriminator": [1],
+            "accounts": [
+                {
+                    "name": "swap_info",
+                    "writable": true
+                },
+                {
+                    "name": "authority_info",
+                    "writable": true
+                },
+                {
+                    "name": "user_transfer_authority_info",
+                    "writable": true,
+                    "signer": true
+                },
+                {
+                    "name": "source_info",
+                    "writable": true
+                },
+                {
+                    "name": "swap_source_info",
+                    "writable": true
+                },
+                {
+                    "name": "swap_destination_info",
+                    "writable": true
+                },
+                {
+                    "name": "destination_info",
+                    "writable": true
+                },
+                {
+                    "name": "pool_mint_info",
+                    "writable": true
+                },
+                {
+                    "name": "pool_fee_account_info",
+                    "writable": true
+                },
+                {
+                    "name": "token_program_info"
+                }
+            ],
+            "args": [
+                {
+                    "name": "amount_in",
+                    "type": "u64"
+                },
+                {
+                    "name": "minimum_amount_out",
+                    "type": "u64"
+                }
+            ]
         },
         {
-          "name": "user_transfer_authority_info",
-          "writable": true,
-          "signer": true
+            "name": "deposit_all_token_types",
+            "discriminator": [2],
+            "accounts": [
+                {
+                    "name": "swap_info"
+                },
+                {
+                    "name": "authority_info"
+                },
+                {
+                    "name": "user_transfer_authority_info",
+                    "writable": true,
+                    "signer": true
+                },
+                {
+                    "name": "source_a_info",
+                    "writable": true
+                },
+                {
+                    "name": "source_b_info",
+                    "writable": true
+                },
+                {
+                    "name": "token_a_info",
+                    "writable": true
+                },
+                {
+                    "name": "token_b_info",
+                    "writable": true
+                },
+                {
+                    "name": "pool_mint_info",
+                    "writable": true
+                },
+                {
+                    "name": "dest_info",
+                    "writable": true
+                },
+                {
+                    "name": "token_program_info"
+                }
+            ],
+            "args": [
+                {
+                    "name": "pool_token_amount",
+                    "type": "u64"
+                },
+                {
+                    "name": "maximum_token_a_amount",
+                    "type": "u64"
+                },
+                {
+                    "name": "maximum_token_b_amount",
+                    "type": "u64"
+                }
+            ]
         },
         {
-          "name": "source_info",
-          "writable": true
+            "name": "withdraw_all_token_types",
+            "discriminator": [3],
+            "accounts": [
+                {
+                    "name": "swap_info"
+                },
+                {
+                    "name": "authority_info"
+                },
+                {
+                    "name": "user_transfer_authority_info",
+                    "writable": true,
+                    "signer": true
+                },
+                {
+                    "name": "pool_mint_info",
+                    "writable": true
+                },
+                {
+                    "name": "source_info",
+                    "writable": true
+                },
+                {
+                    "name": "token_a_info",
+                    "writable": true
+                },
+                {
+                    "name": "token_b_info",
+                    "writable": true
+                },
+                {
+                    "name": "dest_token_a_info",
+                    "writable": true
+                },
+                {
+                    "name": "dest_token_b_info",
+                    "writable": true
+                },
+                {
+                    "name": "pool_fee_account_info",
+                    "writable": true
+                },
+                {
+                    "name": "token_program_info"
+                }
+            ],
+            "args": [
+                {
+                    "name": "pool_token_amount",
+                    "type": "u64"
+                },
+                {
+                    "name": "minimum_token_a_amount",
+                    "type": "u64"
+                },
+                {
+                    "name": "minimum_token_b_amount",
+                    "type": "u64"
+                }
+            ]
         },
         {
-          "name": "swap_source_info",
-          "writable": true
-        },
-        {
-          "name": "swap_destination_info",
-          "writable": true
-        },
-        {
-          "name": "destination_info",
-          "writable": true
-        },
-        {
-          "name": "pool_mint_info",
-          "writable": true
-        },
-        {
-          "name": "pool_fee_account_info",
-          "writable": true
-        },
-        {
-          "name": "token_program_info"
+            "name": "swap_exact_out",
+            "discriminator": [6],
+            "accounts": [
+                {
+                    "name": "swap_info",
+                    "writable": true
+                },
+                {
+                    "name": "authority_info",
+                    "writable": true
+                },
+                {
+                    "name": "user_transfer_authority_info",
+                    "writable": true,
+                    "signer": true
+                },
+                {
+                    "name": "source_info",
+                    "writable": true
+                },
+                {
+                    "name": "swap_source_info",
+                    "writable": true
+                },
+                {
+                    "name": "swap_destination_info",
+                    "writable": true
+                },
+                {
+                    "name": "destination_info",
+                    "writable": true
+                },
+                {
+                    "name": "pool_mint_info",
+                    "writable": true
+                },
+                {
+                    "name": "pool_fee_account_info",
+                    "writable": true
+                },
+                {
+                    "name": "token_program_info"
+                }
+            ],
+            "args": [
+                {
+                    "name": "amount_out",
+                    "type": "u64"
+                },
+                {
+                    "name": "maximum_amount_in",
+                    "type": "u64"
+                }
+            ]
         }
-      ],
-      "args": [
+    ],
+    "accounts": [
         {
-          "name": "amount_in",
-          "type": "u64"
-        },
-        {
-          "name": "minimum_amount_out",
-          "type": "u64"
+            "name": "Pair",
+            "discriminator": []
         }
-      ]
-    },
-    {
-      "name": "deposit_all_token_types",
-      "discriminator": [2],
-      "accounts": [
+    ],
+    "types": [
         {
-          "name": "swap_info"
-        },
-        {
-          "name": "authority_info"
-        },
-        {
-          "name": "user_transfer_authority_info",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "source_a_info",
-          "writable": true
-        },
-        {
-          "name": "source_b_info",
-          "writable": true
-        },
-        {
-          "name": "token_a_info",
-          "writable": true
-        },
-        {
-          "name": "token_b_info",
-          "writable": true
-        },
-        {
-          "name": "pool_mint_info",
-          "writable": true
-        },
-        {
-          "name": "dest_info",
-          "writable": true
-        },
-        {
-          "name": "token_program_info"
-        }
-      ],
-      "args": [
-        {
-          "name": "pool_token_amount",
-          "type": "u64"
-        },
-        {
-          "name": "maximum_token_a_amount",
-          "type": "u64"
-        },
-        {
-          "name": "maximum_token_b_amount",
-          "type": "u64"
-        }
-      ]
-    },
-    {
-      "name": "withdraw_all_token_types",
-      "discriminator": [3],
-      "accounts": [
-        {
-          "name": "swap_info"
-        },
-        {
-          "name": "authority_info"
-        },
-        {
-          "name": "user_transfer_authority_info",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "pool_mint_info",
-          "writable": true
-        },
-        {
-          "name": "source_info",
-          "writable": true
-        },
-        {
-          "name": "token_a_info",
-          "writable": true
-        },
-        {
-          "name": "token_b_info",
-          "writable": true
-        },
-        {
-          "name": "dest_token_a_info",
-          "writable": true
-        },
-        {
-          "name": "dest_token_b_info",
-          "writable": true
-        },
-        {
-          "name": "pool_fee_account_info",
-          "writable": true
-        },
-        {
-          "name": "token_program_info"
-        }
-      ],
-      "args": [
-        {
-          "name": "pool_token_amount",
-          "type": "u64"
-        },
-        {
-          "name": "minimum_token_a_amount",
-          "type": "u64"
-        },
-        {
-          "name": "minimum_token_b_amount",
-          "type": "u64"
-        }
-      ]
-    },
-    {
-      "name": "swap_exact_out",
-      "discriminator": [6],
-      "accounts": [
-        {
-          "name": "swap_info",
-          "writable": true
-        },
-        {
-          "name": "authority_info",
-          "writable": true
-        },
-        {
-          "name": "user_transfer_authority_info",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "source_info",
-          "writable": true
-        },
-        {
-          "name": "swap_source_info",
-          "writable": true
-        },
-        {
-          "name": "swap_destination_info",
-          "writable": true
-        },
-        {
-          "name": "destination_info",
-          "writable": true
-        },
-        {
-          "name": "pool_mint_info",
-          "writable": true
-        },
-        {
-          "name": "pool_fee_account_info",
-          "writable": true
-        },
-        {
-          "name": "token_program_info"
-        }
-      ],
-      "args": [
-        {
-          "name": "amount_out",
-          "type": "u64"
-        },
-        {
-          "name": "maximum_amount_in",
-          "type": "u64"
-        }
-      ]
-    }
-  ],
-  "accounts": [
-    {
-      "name": "Pair",
-      "discriminator": []
-    }
-  ],
-  "types": [
-    {
-      "name": "Pair",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "version",
-            "type": "u8"
-          },
-          {
-            "name": "is_initialized",
-            "type": "bool"
-          },
-          {
-            "name": "bump_seed",
-            "type": "u8"
-          },
-          {
-            "name": "token_program_id",
-            "type": "pubkey"
-          },
-          {
-            "name": "token_a",
-            "type": "pubkey"
-          },
-          {
-            "name": "token_b",
-            "type": "pubkey"
-          },
-          {
-            "name": "pool_mint",
-            "type": "pubkey"
-          },
-          {
-            "name": "token_a_mint",
-            "type": "pubkey"
-          },
-          {
-            "name": "token_b_mint",
-            "type": "pubkey"
-          },
-          {
-            "name": "pool_fee_account",
-            "type": "pubkey"
-          },
-          {
-            "name": "fees",
+            "name": "Pair",
             "type": {
-              "defined": {
-                "name": "Fees"
-              }
+                "kind": "struct",
+                "fields": [
+                    {
+                        "name": "version",
+                        "type": "u8"
+                    },
+                    {
+                        "name": "is_initialized",
+                        "type": "bool"
+                    },
+                    {
+                        "name": "bump_seed",
+                        "type": "u8"
+                    },
+                    {
+                        "name": "token_program_id",
+                        "type": "pubkey"
+                    },
+                    {
+                        "name": "token_a",
+                        "type": "pubkey"
+                    },
+                    {
+                        "name": "token_b",
+                        "type": "pubkey"
+                    },
+                    {
+                        "name": "pool_mint",
+                        "type": "pubkey"
+                    },
+                    {
+                        "name": "token_a_mint",
+                        "type": "pubkey"
+                    },
+                    {
+                        "name": "token_b_mint",
+                        "type": "pubkey"
+                    },
+                    {
+                        "name": "pool_fee_account",
+                        "type": "pubkey"
+                    },
+                    {
+                        "name": "fees",
+                        "type": {
+                            "defined": {
+                                "name": "Fees"
+                            }
+                        }
+                    },
+                    {
+                        "name": "swap_curve",
+                        "type": {
+                            "defined": {
+                                "name": "SwapCurve"
+                            }
+                        }
+                    }
+                ]
             }
-          },
-          {
-            "name": "swap_curve",
+        },
+        {
+            "name": "Fees",
             "type": {
-              "defined": {
-                "name": "SwapCurve"
-              }
+                "kind": "struct",
+                "fields": [
+                    {
+                        "name": "trade_fee_numerator",
+                        "type": "u64"
+                    },
+                    {
+                        "name": "trade_fee_denominator",
+                        "type": "u64"
+                    },
+                    {
+                        "name": "owner_trade_fee_numerator",
+                        "type": "u64"
+                    },
+                    {
+                        "name": "owner_trade_fee_denominator",
+                        "type": "u64"
+                    },
+                    {
+                        "name": "owner_withdraw_fee_numerator",
+                        "type": "u64"
+                    },
+                    {
+                        "name": "owner_withdraw_fee_denominator",
+                        "type": "u64"
+                    },
+                    {
+                        "name": "host_fee_numerator",
+                        "type": "u64"
+                    },
+                    {
+                        "name": "host_fee_denominator",
+                        "type": "u64"
+                    }
+                ]
             }
-          }
-        ]
-      }
-    },
-    {
-      "name": "Fees",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "trade_fee_numerator",
-            "type": "u64"
-          },
-          {
-            "name": "trade_fee_denominator",
-            "type": "u64"
-          },
-          {
-            "name": "owner_trade_fee_numerator",
-            "type": "u64"
-          },
-          {
-            "name": "owner_trade_fee_denominator",
-            "type": "u64"
-          },
-          {
-            "name": "owner_withdraw_fee_numerator",
-            "type": "u64"
-          },
-          {
-            "name": "owner_withdraw_fee_denominator",
-            "type": "u64"
-          },
-          {
-            "name": "host_fee_numerator",
-            "type": "u64"
-          },
-          {
-            "name": "host_fee_denominator",
-            "type": "u64"
-          }
-        ]
-      }
-    },
-    {
-      "name": "SwapCurve",
-      "type": {
-        "kind": "enum",
-        "variants": [
-          {
-            "name": "ConstantProduct"
-          },
-          {
-            "name": "ConstantPrice"
-          },
-          {
-            "name": "Stable"
-          },
-          {
-            "name": "Offset"
-          }
-        ]
-      }
-    }
-  ]
+        },
+        {
+            "name": "SwapCurve",
+            "type": {
+                "kind": "enum",
+                "variants": [
+                    {
+                        "name": "ConstantProduct"
+                    },
+                    {
+                        "name": "ConstantPrice"
+                    },
+                    {
+                        "name": "Stable"
+                    },
+                    {
+                        "name": "Offset"
+                    }
+                ]
+            }
+        }
+    ]
 }
-
