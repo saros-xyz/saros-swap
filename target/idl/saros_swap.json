@@ -1,11 +1,17 @@
 {
-  "name": "saros-swap",
   "address": "SSwapUtytfBdBn1b9NUGG6foMVPtcWgpRU32HToDUZr",
-  "version": "2.2.0",
+  "metadata": {
+    "name": "saros-swap",
+    "version": "2.2.0",
+    "spec": "2.2.0",
+    "description": "Saros AMM"
+  },
   "instructions": [
     {
       "name": "initialize",
-      "discriminator": [0],
+      "discriminator": [
+        0
+      ],
       "accounts": [
         {
           "name": "swap_info",
@@ -53,12 +59,23 @@
               "name": "SwapCurve"
             }
           }
+        },
+        {
+          "name": "swap_calculator",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
         }
       ]
     },
     {
       "name": "swap",
-      "discriminator": [1],
+      "discriminator": [
+        1
+      ],
       "accounts": [
         {
           "name": "swap_info",
@@ -114,7 +131,9 @@
     },
     {
       "name": "deposit_all_token_types",
-      "discriminator": [2],
+      "discriminator": [
+        2
+      ],
       "accounts": [
         {
           "name": "swap_info"
@@ -172,7 +191,9 @@
     },
     {
       "name": "withdraw_all_token_types",
-      "discriminator": [3],
+      "discriminator": [
+        3
+      ],
       "accounts": [
         {
           "name": "swap_info"
@@ -228,6 +249,64 @@
         },
         {
           "name": "minimum_token_b_amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "swap_exact_out",
+      "discriminator": [
+        6
+      ],
+      "accounts": [
+        {
+          "name": "swap_info",
+          "writable": true
+        },
+        {
+          "name": "authority_info",
+          "writable": true
+        },
+        {
+          "name": "user_transfer_authority_info",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "source_info",
+          "writable": true
+        },
+        {
+          "name": "swap_source_info",
+          "writable": true
+        },
+        {
+          "name": "swap_destination_info",
+          "writable": true
+        },
+        {
+          "name": "destination_info",
+          "writable": true
+        },
+        {
+          "name": "pool_mint_info",
+          "writable": true
+        },
+        {
+          "name": "pool_fee_account_info",
+          "writable": true
+        },
+        {
+          "name": "token_program_info"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount_out",
+          "type": "u64"
+        },
+        {
+          "name": "maximum_amount_in",
           "type": "u64"
         }
       ]
@@ -366,4 +445,3 @@
     }
   ]
 }
-
