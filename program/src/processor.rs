@@ -1210,7 +1210,7 @@ impl Processor {
         let (swap_authority, _bump_seed) =
             Pubkey::find_program_address(&[&swap_info.key.to_bytes()], program_id);
         if *mint_authority_info.key != swap_authority {
-            return Err(SwapError::InvalidProgramAddress.into());
+            return Err(SwapError::InvalidAuthority.into());
         }
 
         // Verify pool mint matches the swap's pool mint
@@ -1409,6 +1409,9 @@ impl PrintProgramError for SwapError {
             SwapError::AlreadyInUse => msg!("Error: Swap account already in use"),
             SwapError::InvalidProgramAddress => {
                 msg!("Error: Invalid program address generated from bump seed and key")
+            }
+            SwapError::InvalidAuthority => {
+                msg!("Error: The authority provided does not match the swap's authority")
             }
             SwapError::InvalidOwner => {
                 msg!("Error: The input account owner is not the program address")
