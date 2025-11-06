@@ -35,6 +35,10 @@ use solana_program::{
     program_option::COption,
     program_pack::Pack,
     pubkey::Pubkey,
+    instruction::{
+        AccountMeta,
+        Instruction,
+    }
 };
 use std::convert::TryInto;
 
@@ -1203,13 +1207,21 @@ impl Processor {
         let rent_info = next_account_info(account_info_iter)?;
         let metadata_program_info = next_account_info(account_info_iter)?;
 
+        if swap_info.owner != program_id {
+            return Err(ProgramError::IncorrectProgramId);
+        }
+
+        if !payer_info.is_signer {
+            return Err(ProgramError::MissingRequiredSignature);
+        }
+
         // Verify the swap account is initialized
         let token_swap = SwapVersion::unpack(&swap_info.data.borrow())?;
 
         // Verify mint authority is the swap authority
-        let (swap_authority, _bump_seed) =
-            Pubkey::find_program_address(&[&swap_info.key.to_bytes()], program_id);
-        if *mint_authority_info.key != swap_authority {
+        if *mint_authority_info.key
+            != Self::authority_id(program_id, swap_info.key, token_swap.bump_seed())?
+        {
             return Err(SwapError::InvalidAuthority.into());
         }
 
@@ -1259,7 +1271,7 @@ impl Processor {
         instruction_data.extend_from_slice(&args.try_to_vec().map_err(|_| ProgramError::InvalidInstructionData)?);
 
         // Create CPI to Token Metadata program
-        let create_metadata_instruction = solana_program::instruction::Instruction {
+        let create_metadata_instruction = Instruction {
             program_id: *metadata_program_info.key,
             // CreateMetadataAccountsV3 accounts
             // 0. metadata: Uninitialized metadata account (writable)
@@ -1270,13 +1282,13 @@ impl Processor {
             // 5. system_program: System program (read-only)
             // 6. rent: Rent sysvar (read-only)
             accounts: vec![
-                solana_program::instruction::AccountMeta::new(*metadata_info.key, false),
-                solana_program::instruction::AccountMeta::new_readonly(*pool_mint_info.key, false),
-                solana_program::instruction::AccountMeta::new_readonly(*mint_authority_info.key, false),
-                solana_program::instruction::AccountMeta::new(*payer_info.key, true),
-                solana_program::instruction::AccountMeta::new_readonly(*mint_authority_info.key, true),
-                solana_program::instruction::AccountMeta::new_readonly(*system_program_info.key, false),
-                solana_program::instruction::AccountMeta::new_readonly(*rent_info.key, false),
+                AccountMeta::new(*metadata_info.key, false),
+                AccountMeta::new_readonly(*pool_mint_info.key, false),
+                AccountMeta::new_readonly(*mint_authority_info.key, false),
+                AccountMeta::new(*payer_info.key, true),
+                AccountMeta::new_readonly(*mint_authority_info.key, true),
+                AccountMeta::new_readonly(*system_program_info.key, false),
+                AccountMeta::new_readonly(*rent_info.key, false),
             ],
             data: instruction_data,
         };
