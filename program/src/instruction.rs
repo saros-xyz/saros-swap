@@ -211,6 +211,18 @@ pub enum SwapInstruction {
     ///   9. '[]` Token program id
     ///   10 `[optional, writable]` Host fee account to receive additional trading fees
     SwapExactOut(SwapExactOut),
+
+    ///   Initialize metadata for the pool token mint in a custom metadata account.
+    ///
+    ///   0. `[]` Token-swap account
+    ///   1. `[]` Pool token mint
+    ///   2. `[writable]` Metadata account (PDA)
+    ///   3. `[]` Mint authority (swap authority PDA)
+    ///   4. `[signer]` Payer
+    ///   5. `[]` System program
+    ///   6. `[]` Rent sysvar
+    ///   7. `[]` Token Metadata program
+    InitializeMetadata
 }
 
 impl SwapInstruction {
@@ -279,6 +291,9 @@ impl SwapInstruction {
                     amount_out,
                     maximum_amount_in,
                 })
+            }
+            7 => {
+                Self::InitializeMetadata
             }
             _ => return Err(SwapError::InvalidInstruction.into()),
         })
@@ -364,6 +379,10 @@ impl SwapInstruction {
                 buf.push(6);
                 buf.extend_from_slice(&amount_out.to_le_bytes());
                 buf.extend_from_slice(&maximum_amount_in.to_le_bytes());
+            }
+            Self::InitializeMetadata => {
+                buf.push(7);
+                // No data to pack - metadata values are hardcoded in the processor
             }
         }
         buf
@@ -635,6 +654,38 @@ pub fn swap_exact_out(
     })
 }
 
+/// Creates an 'initialize_metadata' instruction.
+pub fn initialize_metadata(
+    program_id: &Pubkey,
+    swap_pubkey: &Pubkey,
+    pool_mint_pubkey: &Pubkey,
+    metadata_pubkey: &Pubkey,
+    mint_authority_pubkey: &Pubkey,
+    payer_pubkey: &Pubkey,
+    system_program_id: &Pubkey,
+    rent_sysvar_id: &Pubkey,
+    metadata_program_id: &Pubkey,
+) -> Result<Instruction, ProgramError> {
+    let data = SwapInstruction::InitializeMetadata.pack();
+
+    let accounts = vec![
+        AccountMeta::new_readonly(*swap_pubkey, false),
+        AccountMeta::new_readonly(*pool_mint_pubkey, false),
+        AccountMeta::new(*metadata_pubkey, false),
+        AccountMeta::new_readonly(*mint_authority_pubkey, false),
+        AccountMeta::new(*payer_pubkey, true),
+        AccountMeta::new_readonly(*system_program_id, false),
+        AccountMeta::new_readonly(*rent_sysvar_id, false),
+        AccountMeta::new_readonly(*metadata_program_id, false),
+    ];
+
+    Ok(Instruction {
+        program_id: *program_id,
+        accounts,
+        data,
+    })
+}
+
 /// Unpacks a reference from a bytes buffer.
 /// TODO actually pack / unpack instead of relying on normal memory layout.
 pub fn unpack<T>(input: &[u8]) -> Result<&T, ProgramError> {
@@ -790,6 +841,18 @@ mod tests {
         expect.extend_from_slice(&maximum_pool_token_amount.to_le_bytes());
         assert_eq!(packed, expect);
         let unpacked = SwapInstruction::unpack(&expect).unwrap();
+        assert_eq!(unpacked, check);
+    }
+
+    #[test]
+    fn pack_initialize_metadata() {
+        let check = SwapInstruction::InitializeMetadata;
+        let packed = check.pack();
+        let expect = vec![7]; // Just the instruction discriminator, no data
+        assert_eq!(packed, expect);
+        let unpacked = SwapInstruction::unpack(&expect).unwrap();
+        assert_eq!(unpacked, check);
+        let unpacked = SwapInstruction::unpack(&packed).unwrap();
         assert_eq!(unpacked, check);
     }
 }

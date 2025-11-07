@@ -2,6 +2,11 @@ import {
   BorshService,
 } from './libraries/borsh.service';
 import { TOKEN_PROGRAM_ID } from './libraries/token_program_instruction.service';
+import {
+  TOKEN_METADATA_PROGRAM_ID,
+  SYSTEM_PROGRAM_ID,
+  SYSVAR_RENT_PUBKEY,
+} from './saros_swap_constant';
 import * as borsh from '@project-serum/borsh';
 import {
   AccountMeta,
@@ -464,6 +469,49 @@ export class SarosSwapInstructionService {
       <AccountMeta>{ pubkey: userTokenOutAdddress, isSigner: false, isWritable: true },
       <AccountMeta>{ pubkey: protocolFeeLpTokenAddress, isSigner: false, isWritable: true },
       <AccountMeta>{ pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+    ];
+
+    return new TransactionInstruction({
+      data,
+      keys,
+      programId: sarosSwapProgramId,
+    });
+  }
+
+  /**
+   * Initialize metadata for the pool token mint
+   *
+   * This creates a Token Metadata account for the LP token mint using the
+   * Token Metadata program (Metaplex standard).
+   *
+   * @param poolAddress - The pool account address
+   * @param poolMintAddress - The pool LP token mint address
+   * @param metadataAddress - The metadata PDA address
+   * @param mintAuthorityAddress - The mint authority (pool authority PDA)
+   * @param payerAddress - The payer for the metadata account
+   * @param sarosSwapProgramId - The Saros Swap program ID
+   * @returns Transaction instruction
+   */
+  static initializeMetadata(
+    poolAddress: PublicKey,
+    poolMintAddress: PublicKey,
+    metadataAddress: PublicKey,
+    mintAuthorityAddress: PublicKey,
+    payerAddress: PublicKey,
+    sarosSwapProgramId: PublicKey,
+  ): TransactionInstruction {
+    // Instruction discriminator 7 = InitializeMetadata
+    const data = Buffer.from([7]);
+
+    const keys: AccountMeta[] = [
+      <AccountMeta>{ pubkey: poolAddress, isSigner: false, isWritable: false },
+      <AccountMeta>{ pubkey: poolMintAddress, isSigner: false, isWritable: false },
+      <AccountMeta>{ pubkey: metadataAddress, isSigner: false, isWritable: true },
+      <AccountMeta>{ pubkey: mintAuthorityAddress, isSigner: false, isWritable: false },
+      <AccountMeta>{ pubkey: payerAddress, isSigner: true, isWritable: true },
+      <AccountMeta>{ pubkey: SYSTEM_PROGRAM_ID, isSigner: false, isWritable: false },
+      <AccountMeta>{ pubkey: SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false },
+      <AccountMeta>{ pubkey: TOKEN_METADATA_PROGRAM_ID, isSigner: false, isWritable: false },
     ];
 
     return new TransactionInstruction({

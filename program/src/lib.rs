@@ -2,6 +2,7 @@
 
 //! An Uniswap-like program for the Solana blockchain.
 
+pub mod constants;
 pub mod constraints;
 pub mod curve;
 pub mod error;

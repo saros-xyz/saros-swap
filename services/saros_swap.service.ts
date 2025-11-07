@@ -671,6 +671,81 @@ export class SarosSwapService {
     return true;
   }
 
+  /**
+   * Initialize metadata for a pool's LP token mint
+   *
+   * This creates a Token Metadata account for the LP token using the Metaplex
+   * Token Metadata program. The metadata includes name, symbol, and URI.
+   *
+   * @param connection - Solana connection
+   * @param payerAccount - Account that pays for the transaction
+   * @param poolAddress - The pool account address
+   * @param sarosSwapProgramId - The Saros Swap program ID
+   * @returns Transaction signature
+   */
+  static async initializeMetadata(
+    connection: Connection,
+    payerAccount: Keypair,
+    poolAddress: PublicKey,
+    sarosSwapProgramId: PublicKey
+  ): Promise<string> {
+    const transaction = new Transaction();
+
+    // Get pool info to retrieve the LP token mint
+    const poolAccountInfo = await SarosSwapService.getPoolInfo(
+      connection,
+      poolAddress,
+      false
+    );
+
+    const poolMintAddress = poolAccountInfo.lpTokenMint;
+
+    // Find the pool authority (mint authority for the LP token)
+    const [mintAuthorityAddress] = this.findPoolAuthorityAddress(
+      poolAddress,
+      sarosSwapProgramId
+    );
+
+    // Derive the metadata PDA
+    const TOKEN_METADATA_PROGRAM_ID = new PublicKey('metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s');
+    const [metadataAddress] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from('metadata'),
+        TOKEN_METADATA_PROGRAM_ID.toBuffer(),
+        poolMintAddress.toBuffer(),
+      ],
+      TOKEN_METADATA_PROGRAM_ID
+    );
+
+    // Create the initialize metadata instruction
+    const initializeMetadataInstruction =
+      SarosSwapInstructionService.initializeMetadata(
+        poolAddress,
+        poolMintAddress,
+        metadataAddress,
+        mintAuthorityAddress,
+        payerAccount.publicKey,
+        sarosSwapProgramId
+      );
+    transaction.add(initializeMetadataInstruction);
+
+    // Skip preflight check to get actual on-chain logs
+    const txSign = await sendTransaction(
+      connection,
+      transaction,
+      [payerAccount],
+      { skipPreflight: true }
+    );
+
+    console.info(
+      `Initialized metadata for pool ${poolAddress.toBase58()}`,
+      "---",
+      txSign,
+      "\n"
+    );
+    return txSign;
+  }
+
   static async getPoolInfo(
     connection: Connection,
     poolAddress: PublicKey,
