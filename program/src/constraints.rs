@@ -64,7 +64,7 @@ impl<'a> SwapConstraints<'a> {
 const OWNER_KEY: &str = "8ST8fTBGKaVPx4f1KG1zMMw4EJmSJBW2UgX1JR2pPoVa";
 
 #[cfg(feature = "mainnet")]
-const OWNER_KEY: &str = "FDbLZ5DRo61queVRH9LL1mQnsiAoubQEnoCRuPEmH9M8";
+const OWNER_KEY: &str = "3BiVpSVqGw9VX9Dp1SdBvKaGwBtWEhpG8eWkfLPZyMhK";
 /// default value for fee
 //#[cfg(feature = "production")]
 pub const FEES: &Fees = &Fees {
